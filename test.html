@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Ring Simulator Test</title>
+<style>
+body { background: #111; color: #ccc; font-family: monospace; margin: 20px; }
+canvas { border: 1px solid #444; display: block; margin: 10px 0; }
+</style>
+</head>
+<body>
+<h2>Ring Simulator Test</h2>
+
+<p>Force verification (see browser console): ringForce(5, 2, 4, 2) should match
+testforce.cpp output for the ring at (0,5,2) acting on point at (0,4,2).
+The force is purely radial (fy nonzero, fz=0) since both are at z=2.</p>
+
+<p>Click canvas to pause/resume.</p>
+
+<h3>Three rings, equal mass, mutual attraction (trails enabled)</h3>
+<canvas id="c1" width="600" height="400"></canvas>
+
+<h3>Five rings in a pentagon, equal mass</h3>
+<canvas id="c2" width="600" height="400"></canvas>
+
+<script src="ring.js"></script>
+<script>
+// Force verification: compare against testforce.cpp
+// Ring at (y=5, z=2), point at (y=4, z=2).
+// z separation = 0, so force is purely radial (fz should be 0).
+// This should match the "odd-interpolate diff" from testforce.cpp.
+// Run testforce with large nMoons (e.g. 8192) to get the reference "odd" value.
+// ringForce(yRing, zRing, yPoint, zPoint)
+// Ring at y=5,z=2 acting on point at y=4,z=2.
+// z-separation is 0, so fz should be ~0 and fy is the full radial force.
+// Point is inside the ring (y=4 < y_ring=5), so fy should be positive (attracted outward).
+// Python reference: fy=0.0493416525331284, fz=0
+// Compare against: build/run testforce 8192 and check "interpolate" line (a._y component).
+var f = ringForce(5, 2, 4, 2);
+console.log("ringForce(5, 2, 4, 2) fy =", f.fy, " (ref: 0.0493416525331284)");
+console.log("ringForce(5, 2, 4, 2) fz =", f.fz, " (ref: 0)");
+
+// Three rings at different positions, starting roughly at rest
+// Just watching how they pull on each other in the YZ cross-section
+ring("c1", {
+    background: "#000",
+    scale: 25,
+    ymargin: 30,
+    increment: 0.005,
+    work: 3,
+    framerate: 40,
+    trail: true,
+    traillen: 300,
+    fade: 0.02,
+    stop: false,
+    moons: [
+        { y: 4, z:  2, vy: 0.00, vz:  0.02, mass: 1, color: "#ff8800", radius: 5 },
+        { y: 6, z:  0, vy: 0.00, vz: -0.01, mass: 1, color: "#00aaff", radius: 5 },
+        { y: 5, z: -2, vy: 0.01, vz:  0.00, mass: 1, color: "#88ff00", radius: 5 },
+    ]
+});
+
+// Pentagon of equal rings
+(function() {
+    var moons = [];
+    var n = 5, R = 5;
+    var colors = ["#ff4444","#ff9900","#ffff00","#44ff44","#4444ff"];
+    for (var i = 0; i < n; i++) {
+        var angle = i * 2 * Math.PI / n;
+        var y = R + R * 0.8 * Math.cos(angle);  // offset from axis: R + R*0.8*cos
+        var z = R * 0.8 * Math.sin(angle);
+        // small velocity tangent to the pentagon
+        moons.push({ y: y, z: z, vy: 0, vz: 0, mass: 1, color: colors[i], radius: 4 });
+    }
+    ring("c2", {
+        background: "#000",
+        scale: 20,
+        ymargin: 50,
+        increment: 0.005,
+        work: 3,
+        framerate: 40,
+        trail: true,
+        traillen: 400,
+        fade: 0.015,
+        stop: false,
+        moons: moons,
+    });
+})();
+</script>
+</body>
+</html>
