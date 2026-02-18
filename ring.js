@@ -908,6 +908,11 @@ function Ring(opts) {
     this.mass   = (opts.mass  !== undefined) ? opts.mass : 1;
     this.color  = opts.color  || "#ffffff";
     this.radius = (opts.radius !== undefined) ? opts.radius : 3;
+    // Angular momentum per unit mass (conserved): l = Y^2 * dφ/dt.
+    // Produces centrifugal acceleration l^2/Y^3 in the +Y direction,
+    // preventing collapse to the axis.  For a Keplerian circular orbit
+    // around a central mass M at the axis, set l = sqrt(M * Y_initial).
+    this.l      = opts.l      || 0;
     this.ay     = 0;
     this.az     = 0;
     this.trail  = [];
@@ -938,6 +943,11 @@ Cosmos2D.prototype._accel = function() {
     const n = rings.length;
     for (let i = 0; i < n; i++) { rings[i].ay = 0; rings[i].az = 0; }
     for (let i = 0; i < n; i++) {
+        // Centrifugal term from conserved angular momentum: a_Y += l^2 / Y^3
+        if (rings[i].l !== 0) {
+            const y = rings[i].y;
+            rings[i].ay += (rings[i].l * rings[i].l) / (y * y * y);
+        }
         for (let j = 0; j < n; j++) {
             if (i === j) continue;
             const rj = rings[j];

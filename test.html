@@ -39,48 +39,57 @@ var f = ringForce(5, 2, 4, 2);
 console.log("ringForce(5, 2, 4, 2) fy =", f.fy, " (ref: 0.0493416525331284)");
 console.log("ringForce(5, 2, 4, 2) fz =", f.fz, " (ref: 0)");
 
-// Three rings, mutual attraction, visible motion within 1-2 seconds.
-// work=30 advances 30*0.005=0.15 time units per frame; at 25fps that's
-// 3.75 time units/second, enough to see ~20px motion quickly.
+// Three rings orbiting a central sun (mass 100, modeled as a tiny ring near the axis).
+// Each ring is given l = sqrt(M_sun * Y) so it starts in a stable circular orbit.
+// Small perturbations (vy, vz) let us watch the epicyclic oscillations.
+// The sun is not shown (radius:0) but exerts gravity and is included in the moons list.
+var Msun = 100;
 ring("c1", {
     background: "#000",
     scale: 40,
-    ymargin: 30,
-    increment: 0.005,
+    ymargin: 20,
+    increment: 0.002,
     work: 30,
     framerate: 40,
     trail: true,
-    traillen: 300,
-    fade: 0.02,
+    traillen: 500,
+    fade: 0.01,
     stop: false,
     moons: [
-        { y: 3, z:  1, vy: 0.10, vz:  0.10, mass: 1, color: "#ff8800", radius: 5 },
-        { y: 5, z:  0, vy: 0.00, vz: -0.10, mass: 1, color: "#00aaff", radius: 5 },
-        { y: 4, z: -1, vy:-0.10, vz:  0.00, mass: 1, color: "#88ff00", radius: 5 },
+        // Sun: very small y so ringForce treats it as near-point-mass
+        { y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffff00", radius: 4, l: 0 },
+        // Three orbital rings with Keplerian l, slightly perturbed
+        { y: 3, z: 0, vy: 0.3, vz:  0.1, mass: 1, color: "#ff8800", radius: 4,
+          l: Math.sqrt(Msun * 3) },
+        { y: 5, z: 0, vy: 0.0, vz: -0.2, mass: 1, color: "#00aaff", radius: 4,
+          l: Math.sqrt(Msun * 5) },
+        { y: 7, z: 0, vy:-0.2, vz:  0.1, mass: 1, color: "#88ff00", radius: 4,
+          l: Math.sqrt(Msun * 7) },
     ]
 });
 
-// Pentagon of equal rings, starting from rest -- gravitational collapse inward
+// Five rings in a torus cross-section, Keplerian orbits, equally spaced in radius
 (function() {
     var moons = [];
-    var n = 5, R = 4, spread = 2;
     var colors = ["#ff4444","#ff9900","#ffff00","#44ff44","#4444ff"];
-    for (var i = 0; i < n; i++) {
-        var angle = i * 2 * Math.PI / n;
-        var y = R + spread * Math.cos(angle);
-        var z = spread * Math.sin(angle);
-        moons.push({ y: y, z: z, vy: 0, vz: 0, mass: 1, color: colors[i], radius: 4 });
+    // Sun
+    moons.push({ y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffffff", radius: 4, l: 0 });
+    for (var i = 0; i < 5; i++) {
+        var Y = 3 + i * 1.5;  // radii: 3, 4.5, 6, 7.5, 9
+        var dz = (i % 2 === 0) ? 0.3 : -0.3;  // slight vertical offset
+        moons.push({ y: Y, z: dz, vy: 0, vz: 0, mass: 1, color: colors[i], radius: 4,
+                     l: Math.sqrt(Msun * Y) });
     }
     ring("c2", {
         background: "#000",
-        scale: 35,
-        ymargin: 60,
-        increment: 0.005,
+        scale: 30,
+        ymargin: 20,
+        increment: 0.002,
         work: 30,
         framerate: 40,
         trail: true,
-        traillen: 400,
-        fade: 0.015,
+        traillen: 600,
+        fade: 0.008,
         stop: false,
         moons: moons,
     });
