@@ -899,97 +899,243 @@ function ringForce(yRing, zRing, yPoint, zPoint) {
 }
 
 // ======== Ring body ========
+// Position (p.y, p.z), velocity (v.y, v.z), and acceleration (a.y, a.z) are
+// scaled so that one time unit = one integration step (inc = increment/work).
+// Mass is scaled by inc^2, velocity and angular momentum by inc.
+// This matches orbit.js's convention so the step functions need no dt factors.
 
-function Ring(opts) {
-    this.y      = opts.y      || 0;
-    this.z      = opts.z      || 0;
-    this.vy     = opts.vy     || 0;
-    this.vz     = opts.vz     || 0;
-    this.mass   = (opts.mass  !== undefined) ? opts.mass : 1;
+function Ring(opts, inc) {
+    this.p     = { y: opts.y || 0, z: opts.z || 0 };
+    this.v     = { y: (opts.vy || 0) * inc, z: (opts.vz || 0) * inc };
+    this.a     = { y: 0, z: 0 };
+    this.mass  = ((opts.mass !== undefined) ? opts.mass : 1) * inc * inc;
+    // Angular momentum per unit mass (conserved): l = Y^2 * dφ/dt.
+    // Produces centrifugal acceleration l^2/Y^3 in the +Y direction.
+    // For a Keplerian circular orbit around central mass M, set l = sqrt(M*Y).
+    this.l     = (opts.l || 0) * inc;
     this.color  = opts.color  || "#ffffff";
     this.radius = (opts.radius !== undefined) ? opts.radius : 3;
-    // Angular momentum per unit mass (conserved): l = Y^2 * dφ/dt.
-    // Produces centrifugal acceleration l^2/Y^3 in the +Y direction,
-    // preventing collapse to the axis.  For a Keplerian circular orbit
-    // around a central mass M at the axis, set l = sqrt(M * Y_initial).
-    this.l      = opts.l      || 0;
-    this.ay     = 0;
-    this.az     = 0;
     this.trail  = [];
+    // oa/ov allocated by setPoints()
 }
+
+Ring.prototype.setPoints = function(points) {
+    // Circular buffers of length 2*history, aliased so oa[i+history] === oa[i]
+    // for i < 2*points+2.  head stays in [history, 2*history), so oa[head-k]
+    // for k in 0..points always refers to a valid distinct slot.
+    // (same layout as Moon.setPoints in orbit.js)
+    var history = 2 * points + 2;
+    this.history = history;
+    this.oa = new Array(2 * history);
+    this.ov = new Array(2 * history);
+    for (var i = 0; i < 2 * points + 2; i++) {
+        this.oa[i] = { y: 0, z: 0 };
+        this.oa[i + history] = this.oa[i];
+        this.ov[i] = { y: 0, z: 0 };
+        this.ov[i + history] = this.ov[i];
+    }
+    this.head = history;
+};
+
+Ring.prototype.recordStep = function() {
+    this.head++;
+    if (this.head === 2 * this.history) this.head -= this.history;
+    const h = this.head;
+    this.ov[h].y = this.v.y;  this.ov[h].z = this.v.z;
+    this.oa[h].y = this.a.y;  this.oa[h].z = this.a.z;
+};
 
 // ======== 2D N-body cosmos ========
 
 function Cosmos2D(opts) {
-    this.dt       = opts.increment || 0.001;
-    this.work     = opts.work      || 5;
+    this.work     = opts.work      || 20;
+    this.points   = opts.points    || 8;
+    // inc: physical time per integration step (scaled so stepN uses unit timestep)
+    this.inc      = (opts.increment || 1.0) / this.work;
     this.doTrail  = opts.trail     || false;
     this.trailLen = opts.traillen  || 200;
     this.fade     = opts.fade;
     this.scale    = opts.scale     || 50;
     this.ymargin  = opts.ymargin   || 20;
     this.bg       = opts.background || "#000000";
-    this.lifetime = opts.lifetime  || Infinity;
+    this.lifetime = (opts.lifetime || 0) > 0 ? opts.lifetime : Infinity;
     this.time     = 0;
 
-    this.rings = (opts.moons || []).map(function(m) { return new Ring(m); });
+    const inc = this.inc;
+    this.rings = (opts.moons || []).map(function(m) { return new Ring(m, inc); });
+    this.rings.forEach(function(r) { r.setPoints(opts.points || 8); });
 
-    // Compute initial accelerations for velocity Verlet
-    this._accel();
+    this.prepare();
 }
 
-Cosmos2D.prototype._accel = function() {
+// ======== Force / acceleration measurement ========
+
+Cosmos2D.prototype.measureAccelerations = function() {
     const rings = this.rings;
     const n = rings.length;
-    for (let i = 0; i < n; i++) { rings[i].ay = 0; rings[i].az = 0; }
+    for (let i = 0; i < n; i++) { rings[i].a.y = 0; rings[i].a.z = 0; }
     for (let i = 0; i < n; i++) {
-        // Centrifugal term from conserved angular momentum: a_Y += l^2 / Y^3
+        // Centrifugal term from conserved angular momentum: a_Y += l^2/Y^3
+        // (l is already scaled by inc, mass by inc^2, so a is in scaled units)
         if (rings[i].l !== 0) {
-            const y = rings[i].y;
-            rings[i].ay += (rings[i].l * rings[i].l) / (y * y * y);
+            const y = rings[i].p.y;
+            rings[i].a.y += (rings[i].l * rings[i].l) / (y * y * y);
         }
         for (let j = 0; j < n; j++) {
-            if (i === j) continue;
-            const rj = rings[j];
-            const ri = rings[i];
-            const f = ringForce(rj.y, rj.z, ri.y, ri.z);
-            rings[i].ay += rj.mass * f.fy;
-            rings[i].az += rj.mass * f.fz;
+            // Skip self-force for near-axis bodies (they approximate point masses,
+            // where self-gravity is unphysical and diverges as y→0)
+            if (i === j && rings[i].p.y < 0.5) continue;
+            const f = ringForce(rings[j].p.y, rings[j].p.z, rings[i].p.y, rings[i].p.z);
+            // rings[j].mass is already scaled by inc^2, so a = mass_scaled * f is in scaled units
+            rings[i].a.y += rings[j].mass * f.fy;
+            rings[i].a.z += rings[j].mass * f.fz;
         }
     }
 };
 
-Cosmos2D.prototype.step = function() {
+Cosmos2D.prototype.recordStep = function() {
+    this.rings.forEach(function(r) { r.recordStep(); });
+};
+
+// ======== Multistep integration (mirroring orbit.js step1..step8) ========
+// Coefficients from https://burtleburtle.net/bob/math/multistep.html
+// Each stepN advances p by one scaled time unit using the last N accelerations.
+
+function stepRing1(r) {
+    const h = r.head;
+    r.v.y = r.ov[h].y + r.oa[h].y;
+    r.v.z = r.ov[h].z + r.oa[h].z;
+    r.p.y += r.v.y;  r.p.z += r.v.z;
+}
+function stepRing2(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = oa[h].y + oa[h-1].y + ov[h-1].y;
+    const vz = oa[h].z + oa[h-1].z + ov[h-1].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing3(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = (oa[h].y + oa[h-2].y) * (5/4) + oa[h-1].y * (2/4) + ov[h-2].y;
+    const vz = (oa[h].z + oa[h-2].z) * (5/4) + oa[h-1].z * (2/4) + ov[h-2].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing4(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-3].y)*7 + (oa[h-1].y+oa[h-2].y)*5) / 6 + ov[h-3].y;
+    const vz = ((oa[h].z+oa[h-3].z)*7 + (oa[h-1].z+oa[h-2].z)*5) / 6 + ov[h-3].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing5(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-4].y)*67 + (oa[h-1].y+oa[h-3].y)*(-8) + oa[h-2].y*122) / 48 + ov[h-4].y;
+    const vz = ((oa[h].z+oa[h-4].z)*67 + (oa[h-1].z+oa[h-3].z)*(-8) + oa[h-2].z*122) / 48 + ov[h-4].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing6(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-5].y)*317 + (oa[h-1].y+oa[h-4].y)*69 + (oa[h-2].y+oa[h-3].y)*334) / 240 + ov[h-5].y;
+    const vz = ((oa[h].z+oa[h-5].z)*317 + (oa[h-1].z+oa[h-4].z)*69 + (oa[h-2].z+oa[h-3].z)*334) / 240 + ov[h-5].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing7(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-6].y)*13207 + (oa[h-1].y+oa[h-5].y)*(-8934) + (oa[h-2].y+oa[h-4].y)*42873 + oa[h-3].y*(-33812)) / 8640 + ov[h-6].y;
+    const vz = ((oa[h].z+oa[h-6].z)*13207 + (oa[h-1].z+oa[h-5].z)*(-8934) + (oa[h-2].z+oa[h-4].z)*42873 + oa[h-3].z*(-33812)) / 8640 + ov[h-6].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing8(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-7].y)*22081 + (oa[h-6].y+oa[h-1].y)*(-7337) + (oa[h-5].y+oa[h-2].y)*45765 + (oa[h-4].y+oa[h-3].y)*(-29)) / 15120 + ov[h-7].y;
+    const vz = ((oa[h].z+oa[h-7].z)*22081 + (oa[h-6].z+oa[h-1].z)*(-7337) + (oa[h-5].z+oa[h-2].z)*45765 + (oa[h-4].z+oa[h-3].z)*(-29)) / 15120 + ov[h-7].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+
+const stepFns = [null, stepRing1, stepRing2, stepRing3, stepRing4,
+                       stepRing5, stepRing6, stepRing7, stepRing8];
+
+Cosmos2D.prototype.multistep = function() {
+    const fn = stepFns[this.points];
+    const rings = this.rings;
+    for (let i = 0; i < rings.length; i++) {
+        fn(rings[i]);
+        // Atomic repulsion: rings cannot have negative radius
+        if (rings[i].p.y < 0) rings[i].p.y = 0;
+    }
+    this.measureAccelerations();
+    this.recordStep();
+};
+
+// ======== Prepare: bootstrap history by running leapfrog backward ========
+// Mirrors orbit.js Cosmos.prototype.prepare() with iters=0.
+
+Cosmos2D.prototype.prepare = function() {
     const rings = this.rings;
     const n = rings.length;
-    const dt = this.dt;
-    const dt2 = 0.5 * dt * dt;
+    const points = this.points;
 
-    // Velocity Verlet: advance positions using current v and a
+    // Reverse velocities (run backward in time)
+    for (let i = 0; i < n; i++) { rings[i].v.y = -rings[i].v.y; rings[i].v.z = -rings[i].v.z; }
+
+    // Measure accelerations at the starting position
+    this.measureAccelerations();
+
+    // Seed initial history slot: ov[head] = v - a/2  (leapfrog is between-step velocity)
+    const head0 = rings[0].head;
     for (let i = 0; i < n; i++) {
         const r = rings[i];
-        r.y += r.vy * dt + r.ay * dt2;
-        r.z += r.vz * dt + r.az * dt2;
-        if (this.doTrail) {
-            r.trail.push(r.y, r.z);
-            if (r.trail.length > this.trailLen * 2) r.trail.splice(0, 2);
-        }
+        r.oa[head0].y = r.a.y;  r.oa[head0].z = r.a.z;
+        r.ov[head0].y = r.v.y - r.a.y * 0.5;
+        r.ov[head0].z = r.v.z - r.a.z * 0.5;
     }
 
-    // Save old accelerations, compute new ones
-    const oldAy = new Float64Array(n);
-    const oldAz = new Float64Array(n);
-    for (let i = 0; i < n; i++) { oldAy[i] = rings[i].ay; oldAz[i] = rings[i].az; }
-    this._accel();
+    // Take `points` leapfrog steps backward to fill history
+    for (let iStep = 0; iStep < points; iStep++) {
+        for (let i = 0; i < n; i++) stepRing1(rings[i]);
+        this.measureAccelerations();
+        this.recordStep();
+    }
 
-    // Advance velocities using average of old and new accelerations
+    // Reverse: swap velocities (shifted by one), swap accelerations, negate and replay forward
+    const head = rings[0].head;
     for (let i = 0; i < n; i++) {
-        rings[i].vy += 0.5 * (oldAy[i] + rings[i].ay) * dt;
-        rings[i].vz += 0.5 * (oldAz[i] + rings[i].az) * dt;
-    }
+        const r = rings[i];
 
-    this.time += dt;
+        // Swap velocity history (shifted by one to account for leapfrog half-step offset)
+        for (let k = 0; k < Math.floor(points / 2); k++) {
+            const ia = head - k, ib = head - points + 1 + k;
+            let tmp;
+            tmp = r.ov[ia].y; r.ov[ia].y = r.ov[ib].y; r.ov[ib].y = tmp;
+            tmp = r.ov[ia].z; r.ov[ia].z = r.ov[ib].z; r.ov[ib].z = tmp;
+        }
+
+        // Swap acceleration history
+        for (let k = 0; k < Math.floor((points + 1) / 2); k++) {
+            const ia = head - k, ib = head - points + k;
+            let tmp;
+            tmp = r.oa[ia].y; r.oa[ia].y = r.oa[ib].y; r.oa[ib].y = tmp;
+            tmp = r.oa[ia].z; r.oa[ia].z = r.oa[ib].z; r.oa[ib].z = tmp;
+        }
+
+        // Negate velocities and walk position back to the original starting point
+        for (let k = 0; k < points; k++) {
+            r.ov[head - k].y = -r.ov[head - k].y;
+            r.ov[head - k].z = -r.ov[head - k].z;
+            r.p.y += r.ov[head - k].y;
+            r.p.z += r.ov[head - k].z;
+        }
+        r.v.y = r.ov[head].y;  r.v.z = r.ov[head].z;
+        r.a.y = r.oa[head].y;  r.a.z = r.oa[head].z;
+    }
 };
+
+// ======== Display ========
 
 Cosmos2D.prototype.display = function(canvas, ctx) {
     const w = canvas.width, h = canvas.height;
@@ -1019,8 +1165,8 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
             ctx.globalAlpha = 1.0;
         }
 
-        const sx = ymargin + r.y * scale;
-        const sy = cy - r.z * scale;
+        const sx = ymargin + r.p.y * scale;
+        const sy = cy - r.p.z * scale;
         ctx.beginPath();
         ctx.arc(sx, sy, Math.max(r.radius, 1), 0, 2 * Math.PI);
         ctx.fillStyle = r.color;
@@ -1029,6 +1175,9 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
 };
 
 // ======== Canvas binding ========
+// increment: physical time per frame (= work * inc)
+// work:      integration steps per frame
+// points:    multistep order 1..8 (default 8, step1=Verlet, step8=high accuracy)
 
 function ring(canvasId, opts) {
     const canvas = document.getElementById(canvasId);
@@ -1046,7 +1195,16 @@ function ring(canvasId, opts) {
 
     function frame() {
         if (!stopped && cosmos.time < cosmos.lifetime) {
-            for (let i = 0; i < cosmos.work; i++) cosmos.step();
+            for (let i = 0; i < cosmos.work; i++) {
+                cosmos.multistep();
+                cosmos.time += cosmos.inc;
+                if (cosmos.doTrail) {
+                    cosmos.rings.forEach(function(r) {
+                        r.trail.push(r.p.y, r.p.z);
+                        if (r.trail.length > cosmos.trailLen * 2) r.trail.splice(0, 2);
+                    });
+                }
+            }
         }
         cosmos.display(canvas, ctx);
         setTimeout(function() { requestAnimationFrame(frame); }, frameMs);
@@ -1055,7 +1213,8 @@ function ring(canvasId, opts) {
     requestAnimationFrame(frame);
 }
 
-window.ring     = ring;
+window.ring      = ring;
 window.ringForce = ringForce;
+window.Cosmos2D  = Cosmos2D;
 
 })();
