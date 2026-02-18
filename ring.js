@@ -915,6 +915,7 @@ function Ring(opts, inc) {
     this.l     = (opts.l || 0) * inc;
     this.color  = opts.color  || "#ffffff";
     this.radius = (opts.radius !== undefined) ? opts.radius : 3;
+    this.fixed  = opts.fixed  || false;  // if true, position never changes
     this.trail  = [];
     // oa/ov allocated by setPoints()
 }
@@ -975,6 +976,7 @@ Cosmos2D.prototype.measureAccelerations = function() {
     const n = rings.length;
     for (let i = 0; i < n; i++) { rings[i].a.y = 0; rings[i].a.z = 0; }
     for (let i = 0; i < n; i++) {
+        if (rings[i].fixed) continue;  // fixed bodies never accelerate
         // Centrifugal term from conserved angular momentum: a_Y += l^2/Y^3
         // (l is already scaled by inc, mass by inc^2, so a is in scaled units)
         if (rings[i].l !== 0) {
@@ -1064,6 +1066,7 @@ Cosmos2D.prototype.multistep = function() {
     const fn = stepFns[this.points];
     const rings = this.rings;
     for (let i = 0; i < rings.length; i++) {
+        if (rings[i].fixed) continue;
         fn(rings[i]);
         // Atomic repulsion: rings cannot have negative radius
         if (rings[i].p.y < 0) rings[i].p.y = 0;

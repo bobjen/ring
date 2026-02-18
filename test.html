@@ -56,8 +56,8 @@ ring("c1", {
     fade: 0.01,
     stop: false,
     moons: [
-        // Sun: very small y so ringForce treats it as near-point-mass
-        { y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffff00", radius: 4, l: 0 },
+        // Sun: fixed on axis, treated as near-point-mass
+        { y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffff00", radius: 4, l: 0, fixed: true },
         // Three orbital rings with Keplerian l, slightly perturbed
         { y: 3, z: 0, vy: 0.3, vz:  0.1, mass: 1, color: "#ff8800", radius: 4,
           l: Math.sqrt(Msun * 3) },
@@ -73,7 +73,7 @@ ring("c1", {
     var moons = [];
     var colors = ["#ff4444","#ff9900","#ffff00","#44ff44","#4444ff"];
     // Sun
-    moons.push({ y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffffff", radius: 4, l: 0 });
+    moons.push({ y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffffff", radius: 4, l: 0, fixed: true });
     for (var i = 0; i < 5; i++) {
         var Y = 3 + i * 1.5;  // radii: 3, 4.5, 6, 7.5, 9
         var dz = (i % 2 === 0) ? 0.3 : -0.3;  // slight vertical offset
