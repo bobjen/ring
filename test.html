@@ -39,44 +39,44 @@ var f = ringForce(5, 2, 4, 2);
 console.log("ringForce(5, 2, 4, 2) fy =", f.fy, " (ref: 0.0493416525331284)");
 console.log("ringForce(5, 2, 4, 2) fz =", f.fz, " (ref: 0)");
 
-// Three rings at different positions, starting roughly at rest
-// Just watching how they pull on each other in the YZ cross-section
+// Three rings, mutual attraction, visible motion within 1-2 seconds.
+// work=30 advances 30*0.005=0.15 time units per frame; at 25fps that's
+// 3.75 time units/second, enough to see ~20px motion quickly.
 ring("c1", {
     background: "#000",
-    scale: 25,
+    scale: 40,
     ymargin: 30,
     increment: 0.005,
-    work: 3,
+    work: 30,
     framerate: 40,
     trail: true,
     traillen: 300,
     fade: 0.02,
     stop: false,
     moons: [
-        { y: 4, z:  2, vy: 0.00, vz:  0.02, mass: 1, color: "#ff8800", radius: 5 },
-        { y: 6, z:  0, vy: 0.00, vz: -0.01, mass: 1, color: "#00aaff", radius: 5 },
-        { y: 5, z: -2, vy: 0.01, vz:  0.00, mass: 1, color: "#88ff00", radius: 5 },
+        { y: 3, z:  1, vy: 0.10, vz:  0.10, mass: 1, color: "#ff8800", radius: 5 },
+        { y: 5, z:  0, vy: 0.00, vz: -0.10, mass: 1, color: "#00aaff", radius: 5 },
+        { y: 4, z: -1, vy:-0.10, vz:  0.00, mass: 1, color: "#88ff00", radius: 5 },
     ]
 });
 
-// Pentagon of equal rings
+// Pentagon of equal rings, starting from rest -- gravitational collapse inward
 (function() {
     var moons = [];
-    var n = 5, R = 5;
+    var n = 5, R = 4, spread = 2;
     var colors = ["#ff4444","#ff9900","#ffff00","#44ff44","#4444ff"];
     for (var i = 0; i < n; i++) {
         var angle = i * 2 * Math.PI / n;
-        var y = R + R * 0.8 * Math.cos(angle);  // offset from axis: R + R*0.8*cos
-        var z = R * 0.8 * Math.sin(angle);
-        // small velocity tangent to the pentagon
+        var y = R + spread * Math.cos(angle);
+        var z = spread * Math.sin(angle);
         moons.push({ y: y, z: z, vy: 0, vz: 0, mass: 1, color: colors[i], radius: 4 });
     }
     ring("c2", {
         background: "#000",
-        scale: 20,
-        ymargin: 50,
+        scale: 35,
+        ymargin: 60,
         increment: 0.005,
-        work: 3,
+        work: 30,
         framerate: 40,
         trail: true,
         traillen: 400,
