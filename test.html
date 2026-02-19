@@ -28,6 +28,11 @@ a circle of radius 0.1 around the central ring, all with l=1 and tangential spee
 in the YZ cross-section. Do they orbit the central ring or disperse?</p>
 <canvas id="c3" width="600" height="400"></canvas>
 
+<h3>Same as above but specified with vx (azimuthal speed) instead of l</h3>
+<p>Green moon: vx=1, vy=0, vz=0. Red moon: vx=sqrt(0.99) (= l/y = 0.99/sqrt(0.99)), vy=-0.1, vz=0.
+Should be identical to c3.</p>
+<canvas id="c4" width="600" height="400"></canvas>
+
 <script src="ring.js"></script>
 <script>
 // Force verification: compare against testforce.cpp
@@ -111,6 +116,30 @@ ring("c1", {
         { y: Math.sqrt(0.99), z: 0.1, vy: -0.1, vz: 0, mass: 0, color: "#ff4444", radius: 3, l: 0.99 },
     ];
     ring("c3", {
+        background: "#000",
+        scale: 400,
+        ymargin: 10,
+        increment: 2 * Math.PI,
+        work: 60,
+        framerate: 40,
+        trail: true,
+        traillen: 1200,
+        fade: 0.002,
+        stop: false,
+        moons: moons,
+    });
+})();
+
+// Same as c3 but using vx (azimuthal speed) instead of l.
+// Green: y=1, vx=1  =>  l = 1*1 = 1  (same as c3)
+// Red:   y=sqrt(0.99), vx=sqrt(0.99)  =>  l = sqrt(0.99)*sqrt(0.99) = 0.99  (same as c3)
+(function() {
+    const moons = [
+        { y: 0, z: 0, mass: 1.0, color: "#ffff00", radius: 5, l: 0, fixed: true },
+        { y: 1, z: 0, vy: 0, vz: 0, mass: 0, color: "#44ff44", radius: 4, vx: 1 },
+        { y: Math.sqrt(0.99), z: 0.1, vy: -0.1, vz: 0, mass: 0, color: "#ff4444", radius: 3, vx: Math.sqrt(0.99) },
+    ];
+    ring("c4", {
         background: "#000",
         scale: 400,
         ymargin: 10,

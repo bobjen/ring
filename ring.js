@@ -4,7 +4,7 @@
 //
 // Usage: ring("canvasId", opts)
 // opts fields (same style as orbit.js):
-//   moons:      array of {y, z, vy, vz, mass, color, radius}
+//   moons:      array of {y, z, vy, vz, mass, color, radius, l} or use vx instead of l (l = y*vx)
 //   increment:  timestep (default 0.001)
 //   work:       steps per frame (default 5)
 //   framerate:  ms between frames (default 50)
@@ -912,7 +912,10 @@ function Ring(opts, inc) {
     // Angular momentum per unit mass (conserved): l = Y^2 * dφ/dt.
     // Produces centrifugal acceleration l^2/Y^3 in the +Y direction.
     // For a Keplerian circular orbit around central mass M, set l = sqrt(M*Y).
-    this.l     = (opts.l || 0) * inc;
+    // Alternatively, supply vx (azimuthal speed) instead of l; l = y * vx.
+    const l_val = (opts.l !== undefined) ? opts.l :
+                  (opts.vx !== undefined) ? opts.y * opts.vx : 0;
+    this.l     = l_val * inc;
     this.color  = opts.color  || "#ffffff";
     this.radius = (opts.radius !== undefined) ? opts.radius : 3;
     this.fixed  = opts.fixed  || false;  // if true, position never changes
