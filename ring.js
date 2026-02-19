@@ -1059,8 +1059,60 @@ function stepRing8(r) {
     r.p.y += vy;  r.p.z += vz;
 }
 
+function stepRing9(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-8].y)*666151 + (oa[h-7].y+oa[h-1].y)*(-841748) + (oa[h-6].y+oa[h-2].y)*3606748 + (oa[h-5].y+oa[h-3].y)*(-5111276) + oa[h-4].y*6989050) / 403200 + ov[h-8].y;
+    const vz = ((oa[h].z+oa[h-8].z)*666151 + (oa[h-7].z+oa[h-1].z)*(-841748) + (oa[h-6].z+oa[h-2].z)*3606748 + (oa[h-5].z+oa[h-3].z)*(-5111276) + oa[h-4].z*6989050) / 403200 + ov[h-8].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing10(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-9].y)*1153247 + (oa[h-8].y+oa[h-1].y)*(-1055189) + (oa[h-7].y+oa[h-2].y)*4412680 + (oa[h-6].y+oa[h-3].y)*(-3621776) + (oa[h-5].y+oa[h-4].y)*2739838) / 725760 + ov[h-9].y;
+    const vz = ((oa[h].z+oa[h-9].z)*1153247 + (oa[h-8].z+oa[h-1].z)*(-1055189) + (oa[h-7].z+oa[h-2].z)*4412680 + (oa[h-6].z+oa[h-3].z)*(-3621776) + (oa[h-5].z+oa[h-4].z)*2739838) / 725760 + ov[h-9].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing11(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-10].y)*25671198 + (oa[h-9].y+oa[h-1].y)*(-48082866) + (oa[h-8].y+oa[h-2].y)*214734403 + (oa[h-7].y+oa[h-3].y)*(-426775928) + (oa[h-6].y+oa[h-4].y)*713681566 + oa[h-5].y*(-798789548)) / 14515200 + ov[h-10].y;
+    const vz = ((oa[h].z+oa[h-10].z)*25671198 + (oa[h-9].z+oa[h-1].z)*(-48082866) + (oa[h-8].z+oa[h-2].z)*214734403 + (oa[h-7].z+oa[h-3].z)*(-426775928) + (oa[h-6].z+oa[h-4].z)*713681566 + oa[h-5].z*(-798789548)) / 14515200 + ov[h-10].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing12(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-11].y)*136462207 + (oa[h-10].y+oa[h-1].y)*(-207556851) + (oa[h-9].y+oa[h-2].y)*867125681 + (oa[h-8].y+oa[h-3].y)*(-1296919125) + (oa[h-7].y+oa[h-4].y)*1550731494 + (oa[h-6].y+oa[h-5].y)*(-570841806)) / 79833600 + ov[h-11].y;
+    const vz = ((oa[h].z+oa[h-11].z)*136462207 + (oa[h-10].z+oa[h-1].z)*(-207556851) + (oa[h-9].z+oa[h-2].z)*867125681 + (oa[h-8].z+oa[h-3].z)*(-1296919125) + (oa[h-7].z+oa[h-4].z)*1550731494 + (oa[h-6].z+oa[h-5].z)*(-570841806)) / 79833600 + ov[h-11].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing13(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-12].y)*378058032343 + (oa[h-11].y+oa[h-1].y)*(-945040569456) + (oa[h-10].y+oa[h-2].y)*4583977840758 + (oa[h-9].y+oa[h-3].y)*(-11577417859120) + (oa[h-8].y+oa[h-4].y)*23470490529945 + (oa[h-7].y+oa[h-5].y)*(-34487534887776) + oa[h-6].y*39770282562612) / 201180672000 + ov[h-12].y;
+    const vz = ((oa[h].z+oa[h-12].z)*378058032343 + (oa[h-11].z+oa[h-1].z)*(-945040569456) + (oa[h-10].z+oa[h-2].z)*4583977840758 + (oa[h-9].z+oa[h-3].z)*(-11577417859120) + (oa[h-8].z+oa[h-4].z)*23470490529945 + (oa[h-7].z+oa[h-5].z)*(-34487534887776) + oa[h-6].z*39770282562612) / 201180672000 + ov[h-12].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing14(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-13].y)*681136420843 + (oa[h-12].y+oa[h-1].y)*(-1460925809093) + (oa[h-11].y+oa[h-2].y)*6596939334222 + (oa[h-10].y+oa[h-3].y)*(-13816376923762) + (oa[h-9].y+oa[h-4].y)*22389594250325 + (oa[h-8].y+oa[h-5].y)*(-21489156636931) + (oa[h-7].y+oa[h-6].y)*9714138099396) / 373621248000 + ov[h-13].y;
+    const vz = ((oa[h].z+oa[h-13].z)*681136420843 + (oa[h-12].z+oa[h-1].z)*(-1460925809093) + (oa[h-11].z+oa[h-2].z)*6596939334222 + (oa[h-10].z+oa[h-3].z)*(-13816376923762) + (oa[h-9].z+oa[h-4].z)*22389594250325 + (oa[h-8].z+oa[h-5].z)*(-21489156636931) + (oa[h-7].z+oa[h-6].z)*9714138099396) / 373621248000 + ov[h-13].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+function stepRing15(r) {
+    const h = r.head, oa = r.oa, ov = r.ov;
+    const vy = ((oa[h].y+oa[h-14].y)*4153203447599 + (oa[h-13].y+oa[h-1].y)*(-13042376982862) + (oa[h-12].y+oa[h-2].y)*69424491332981 + (oa[h-11].y+oa[h-3].y)*(-211439794724972) + (oa[h-10].y+oa[h-4].y)*507593493132679 + (oa[h-9].y+oa[h-5].y)*(-917407311608978) + (oa[h-8].y+oa[h-6].y)*1310265250135509 + oa[h-7].y*(-1467709724631912)) / 2092278988800 + ov[h-14].y;
+    const vz = ((oa[h].z+oa[h-14].z)*4153203447599 + (oa[h-13].z+oa[h-1].z)*(-13042376982862) + (oa[h-12].z+oa[h-2].z)*69424491332981 + (oa[h-11].z+oa[h-3].z)*(-211439794724972) + (oa[h-10].z+oa[h-4].z)*507593493132679 + (oa[h-9].z+oa[h-5].z)*(-917407311608978) + (oa[h-8].z+oa[h-6].z)*1310265250135509 + oa[h-7].z*(-1467709724631912)) / 2092278988800 + ov[h-14].z;
+    r.v.y = vy;  r.v.z = vz;
+    r.p.y += vy;  r.p.z += vz;
+}
+
 const stepFns = [null, stepRing1, stepRing2, stepRing3, stepRing4,
-                       stepRing5, stepRing6, stepRing7, stepRing8];
+                       stepRing5, stepRing6, stepRing7, stepRing8,
+                       stepRing9, stepRing10, stepRing11, stepRing12,
+                       stepRing13, stepRing14, stepRing15];
 
 Cosmos2D.prototype.multistep = function() {
     const fn = stepFns[this.points];
@@ -1180,7 +1232,7 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
 // ======== Canvas binding ========
 // increment: physical time per frame (= work * inc)
 // work:      integration steps per frame
-// points:    multistep order 1..8 (default 8, step1=Verlet, step8=high accuracy)
+// points:    multistep order 1..15 (default 8, step1=Verlet, step15=highest accuracy)
 
 function ring(canvasId, opts) {
     const canvas = document.getElementById(canvasId);
@@ -1196,6 +1248,9 @@ function ring(canvasId, opts) {
 
     canvas.addEventListener("click", function() { stopped = !stopped; });
 
+    // Display the initial state before any stepping
+    cosmos.display(canvas, ctx);
+
     function frame() {
         if (!stopped && cosmos.time < cosmos.lifetime) {
             for (let i = 0; i < cosmos.work; i++) {
@@ -1208,8 +1263,8 @@ function ring(canvasId, opts) {
                     });
                 }
             }
+            cosmos.display(canvas, ctx);
         }
-        cosmos.display(canvas, ctx);
         setTimeout(function() { requestAnimationFrame(frame); }, frameMs);
     }
 
