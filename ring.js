@@ -950,6 +950,18 @@ Ring.prototype.recordStep = function() {
     this.oa[h].y = this.a.y;  this.oa[h].z = this.a.z;
 };
 
+// ======== Color parsing utility ========
+// Parse any CSS color string to [r, g, b] via a temporary 1x1 canvas.
+function parseColorRGB(css) {
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = 1;
+    const ctx = tmp.getContext('2d');
+    ctx.fillStyle = css;
+    ctx.fillRect(0, 0, 1, 1);
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2]];
+}
+
 // ======== 2D N-body cosmos ========
 
 function Cosmos2D(opts) {
@@ -963,7 +975,8 @@ function Cosmos2D(opts) {
     this.scale    = opts.scale     || 50;
     this.ymargin  = opts.ymargin   || 20;
     this.bg       = opts.background || "#000000";
-    this.fadeto   = opts.fadeto !== undefined ? opts.fadeto : this.bg;
+    this.fadeto    = opts.fadeto !== undefined ? opts.fadeto : this.bg;
+    this.fadetoRGB = parseColorRGB(this.fadeto);
     this.lifetime = (opts.lifetime || 0) > 0 ? opts.lifetime : Infinity;
     this.time     = 0;
 
@@ -1204,10 +1217,24 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
     const cy = h / 2;
 
     if (this.fade !== undefined) {
-        ctx.globalAlpha = this.fade;
-        ctx.fillStyle = this.fadeto;
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalAlpha = 1.0;
+        // Use getImageData so we can guarantee integer convergence.
+        // Math.round would leave pixels stuck (e.g. round(1 * 0.998) = 1 forever).
+        // Instead, floor when stepping down and ceil when stepping up, so every
+        // channel moves by at least 1 per frame until it reaches the target.
+        const keep = 1 - this.fade;
+        const [fr, fg, fb] = this.fadetoRGB;
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const d = imageData.data;
+        for (let i = 0; i < d.length; i += 4) {
+            const r = d[i], g = d[i+1], b = d[i+2];
+            const nr = r * keep + fr * this.fade;
+            const ng = g * keep + fg * this.fade;
+            const nb = b * keep + fb * this.fade;
+            d[i]   = nr < r ? Math.max(Math.floor(nr), fr) : nr > r ? Math.min(Math.ceil(nr), fr) : r;
+            d[i+1] = ng < g ? Math.max(Math.floor(ng), fg) : ng > g ? Math.min(Math.ceil(ng), fg) : g;
+            d[i+2] = nb < b ? Math.max(Math.floor(nb), fb) : nb > b ? Math.min(Math.ceil(nb), fb) : b;
+        }
+        ctx.putImageData(imageData, 0, 0);
     } else {
         ctx.fillStyle = this.bg;
         ctx.fillRect(0, 0, w, h);
