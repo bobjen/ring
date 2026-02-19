@@ -102,34 +102,24 @@ ring("c1", {
 })();
 
 // Dyson torus: central ring at (Y=1,Z=0) plus 8 rings in a circle of radius 0.1.
-// All rings massless, l=1. The 8 rings have tangential speed 0.1 in the YZ plane:
-//   vy = -0.1*sin(theta), vz = 0.1*cos(theta)  (counterclockwise)
+// All rings massless, l=1. Single moon at theta=0 on circle: Y=1.1, Z=0, vz=0.1.
+// increment=2*pi, work=30 => exactly 30 steps/orbit (minimum for long-term accuracy).
 (function() {
     const moons = [
         { y: 0.01, z: 0, mass: 1.0, color: "#ffff00", radius: 5, l: 0, fixed: true },
         { y: 1, z: 0, vy: 0, vz: 0, mass: 0, color: "#44ff44", radius: 4, l: 1 },
+        { y: 1.1, z: 0, vy: 0, vz: 0.1, mass: 0, color: "#ff4444", radius: 3, l: 1 },
     ];
-    const R = 0.1, speed = 0.1, N = 8;
-    for (let k = 0; k < N; k++) {
-        const theta = k * 2 * Math.PI / N;
-        moons.push({
-            y: 1 + R * Math.cos(theta),
-            z:     R * Math.sin(theta),
-            vy: -speed * Math.sin(theta),
-            vz:  speed * Math.cos(theta),
-            mass: 0, color: "#ff4444", radius: 3, l: 1,
-        });
-    }
     ring("c3", {
         background: "#000",
         scale: 400,
         ymargin: 10,
-        increment: 0.06,
+        increment: 2 * Math.PI,
         work: 30,
         framerate: 40,
         trail: true,
-        traillen: 600,
-        fade: 0.005,
+        traillen: 1200,
+        fade: 0.002,
         stop: false,
         moons: moons,
     });
