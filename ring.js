@@ -13,6 +13,7 @@
 //   trail:      true to show trails
 //   traillen:   max trail length in points (default 200)
 //   fade:       trail fade alpha per frame (e.g. 0.05)
+//   fadeto:     color to fade toward (default: background color; set to e.g. "#000" to show all visited positions)
 //   background: background color string (default "#000000")
 //   stop:       true to start paused (click canvas to toggle)
 //   lifetime:   stop simulation after this many time units
@@ -962,6 +963,7 @@ function Cosmos2D(opts) {
     this.scale    = opts.scale     || 50;
     this.ymargin  = opts.ymargin   || 20;
     this.bg       = opts.background || "#000000";
+    this.fadeto   = opts.fadeto !== undefined ? opts.fadeto : this.bg;
     this.lifetime = (opts.lifetime || 0) > 0 ? opts.lifetime : Infinity;
     this.time     = 0;
 
@@ -1202,8 +1204,10 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
     const cy = h / 2;
 
     if (this.fade !== undefined) {
-        ctx.fillStyle = "rgba(0,0,0," + this.fade + ")";
+        ctx.globalAlpha = this.fade;
+        ctx.fillStyle = this.fadeto;
         ctx.fillRect(0, 0, w, h);
+        ctx.globalAlpha = 1.0;
     } else {
         ctx.fillStyle = this.bg;
         ctx.fillRect(0, 0, w, h);
