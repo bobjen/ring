@@ -874,10 +874,10 @@ function ringForce(yRing, zRing, yPoint, zPoint) {
     }
 
     if (rd === pd && zRing === zPoint) {
-        // Point lies exactly in the ring plane at ring radius -- use 8192-moon approximation
+        // Point is one of the moons in the ring -- use 8192-moon approximation
         const dist2 = pd;
         const dist3 = dist2 * Math.sqrt(dist2);
-        const f8192 = -1.45412650720466918;
+        const f8192 = -1.67476210784495994;
         return { fy: f8192 * yPoint / dist3, fz: 0.0 };
     }
 
