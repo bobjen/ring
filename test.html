@@ -22,10 +22,11 @@ The force is purely radial (fy nonzero, fz=0) since both are at z=2.</p>
 <h3>Five rings in a pentagon, equal mass</h3>
 <canvas id="c2" width="600" height="400"></canvas>
 
-<h3>Dyson torus: moon2 and moon66 from dyson.html, plus reference ring at cross-section center</h3>
-<p>moon2 (red) and moon66 (blue) from dyson.html converted to ring simulator coordinates.
-Both have l=0.640. Green ring is a reference placed near the estimated center of the
-torus cross-section. Sun mass=1.0 (orbit.js units), moons are massless.</p>
+<h3>Dyson torus: central ring (green, Z=0) plus one torus orbit (red, x=y=0.1)</h3>
+<p>Sun mass=1.0. Central ring at Y=1, Z=0, l=1 stays fixed (circular equatorial orbit).
+Torus ring from position (0,sqrt(1-x^2),x), velocity (sqrt(1-y^2),0,y) with x=y=0.1:
+Y=0.9950, Z=0.1, l=0.990, vz=0.1. Both moons have |r|=1, |v|=1 (same energy/period).
+Massless rings, no self-gravity.</p>
 <canvas id="c3" width="600" height="400"></canvas>
 
 <script src="ring.js"></script>
@@ -101,14 +102,11 @@ ring("c1", {
     });
 })();
 
-// Dyson torus from dyson.html (orbit.js units: sun mass=1, circular orbit at r=1, period=2pi).
-// Converted from 3D (x,y,z),(vx,vy,vz) to ring simulator:
-//   Y = sqrt(x^2+y^2),  Z = z
-//   l = x*vy - y*vx  (z-component of angular momentum per unit mass)
-//   vy_ring = (x*vx + y*vy) / Y  (radial velocity)
-//   vz = vz  (axial velocity)
-// moon2:  Y=0.670665 Z=-0.583781 l=0.640000 vy=0.561658 vz=-0.156644
-// moon66: Y=0.902657 Z=-0.591749 l=0.640000 vy=0.585385 vz=0.091413
+// Dyson torus (orbit.js units: sun mass=1, circular orbit at r=1, period=2pi).
+// Central ring: 3D position (0,1,0), velocity (1,0,0) -> Y=1, Z=0, l=1, vy=0, vz=0.
+// Torus ring: position (0,sqrt(1-x^2),x), velocity (sqrt(1-y^2),0,y) with x=y=0.1
+//   -> Y=sqrt(0.99), Z=0.1, l=0.99, vy=0, vz=0.1.
+// Both moons have |r|=1, |v|=1 (same energy, same period 2pi). Massless, no self-gravity.
 (function() {
     ring("c3", {
         background: "#000",
@@ -122,17 +120,12 @@ ring("c1", {
         fade: 0.005,
         stop: false,
         moons: [
-            // Sun: mass=1.0 in orbit.js units, fixed on axis
+            // Sun: mass=1.0, fixed on axis
             { y: 0.01, z: 0, mass: 1.0, color: "#ffff00", radius: 5, l: 0, fixed: true },
-            // moon2 from dyson.html (red)
-            { y: 0.670665, z: -0.583781, vy: 0.561658, vz: -0.156644, mass: 0,
-              color: "#ff4444", radius: 4, l: 0.640000 },
-            // moon66 from dyson.html (blue)
-            { y: 0.902657, z: -0.591749, vy: 0.585385, vz:  0.091413, mass: 0,
-              color: "#4488ff", radius: 4, l: 0.640000 },
-            // Reference ring near estimated center of torus cross-section (green)
-            { y: 0.787, z: -0.588, vy: 0, vz: 0, mass: 0,
-              color: "#44ff44", radius: 4, l: 0.640000 },
+            // Central ring: circular equatorial orbit at Y=1, Z=0 (green)
+            { y: 1, z: 0, vy: 0, vz: 0, mass: 0, color: "#44ff44", radius: 4, l: 1 },
+            // Torus ring: x=0.1 position, y=0.1 velocity (red)
+            { y: Math.sqrt(0.99), z: 0.1, vy: 0, vz: 0.1, mass: 0, color: "#ff4444", radius: 4, l: 0.99 },
         ],
     });
 })();
