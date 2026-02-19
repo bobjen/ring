@@ -972,6 +972,14 @@ function Cosmos2D(opts) {
     this.doTrail  = opts.trail     || false;
     this.trailLen = opts.traillen  || 200;
     this.fade     = opts.fade;
+    if (opts.fade !== undefined) {
+        // Apply fade only every fadeN frames so slow fades aren't capped at 255 frames.
+        // fadeN chosen so fadeN*fade >= 1/255, guaranteeing integer progress per application.
+        // fadeStrength uses the exact compound rate so long-run decay is preserved.
+        this.fadeN        = Math.max(1, Math.ceil(1 / (255 * opts.fade)));
+        this.fadeStrength = 1 - Math.pow(1 - opts.fade, this.fadeN);
+        this.fadeFrame    = 0;
+    }
     this.scale    = opts.scale     || 50;
     this.ymargin  = opts.ymargin   || 20;
     this.bg       = opts.background || "#000000";
@@ -1217,24 +1225,27 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
     const cy = h / 2;
 
     if (this.fade !== undefined) {
-        // Use getImageData so we can guarantee integer convergence.
-        // Math.round would leave pixels stuck (e.g. round(1 * 0.998) = 1 forever).
-        // Instead, floor when stepping down and ceil when stepping up, so every
-        // channel moves by at least 1 per frame until it reaches the target.
-        const keep = 1 - this.fade;
-        const [fr, fg, fb] = this.fadetoRGB;
-        const imageData = ctx.getImageData(0, 0, w, h);
-        const d = imageData.data;
-        for (let i = 0; i < d.length; i += 4) {
-            const r = d[i], g = d[i+1], b = d[i+2];
-            const nr = r * keep + fr * this.fade;
-            const ng = g * keep + fg * this.fade;
-            const nb = b * keep + fb * this.fade;
-            d[i]   = nr < r ? Math.max(Math.floor(nr), fr) : nr > r ? Math.min(Math.ceil(nr), fr) : r;
-            d[i+1] = ng < g ? Math.max(Math.floor(ng), fg) : ng > g ? Math.min(Math.ceil(ng), fg) : g;
-            d[i+2] = nb < b ? Math.max(Math.floor(nb), fb) : nb > b ? Math.min(Math.ceil(nb), fb) : b;
+        // Apply only every fadeN frames; use compound fadeStrength when applied.
+        // This avoids the 255-frame cap while still guaranteeing integer convergence:
+        // floor when stepping down / ceil when stepping up ensures at least 1-unit
+        // progress per application so pixels always reach the target eventually.
+        this.fadeFrame++;
+        if (this.fadeFrame % this.fadeN === 0) {
+            const keep = 1 - this.fadeStrength;
+            const [fr, fg, fb] = this.fadetoRGB;
+            const imageData = ctx.getImageData(0, 0, w, h);
+            const d = imageData.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const r = d[i], g = d[i+1], b = d[i+2];
+                const nr = r * keep + fr * this.fadeStrength;
+                const ng = g * keep + fg * this.fadeStrength;
+                const nb = b * keep + fb * this.fadeStrength;
+                d[i]   = nr < r ? Math.max(Math.floor(nr), fr) : nr > r ? Math.min(Math.ceil(nr), fr) : r;
+                d[i+1] = ng < g ? Math.max(Math.floor(ng), fg) : ng > g ? Math.min(Math.ceil(ng), fg) : g;
+                d[i+2] = nb < b ? Math.max(Math.floor(nb), fb) : nb > b ? Math.min(Math.ceil(nb), fb) : b;
+            }
+            ctx.putImageData(imageData, 0, 0);
         }
-        ctx.putImageData(imageData, 0, 0);
     } else {
         ctx.fillStyle = this.bg;
         ctx.fillRect(0, 0, w, h);
