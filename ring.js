@@ -1153,61 +1153,116 @@ Cosmos2D.prototype.multistep = function() {
     this.recordStep();
 };
 
-// ======== Prepare: bootstrap history by running leapfrog backward ========
-// Mirrors orbit.js Cosmos.prototype.prepare() with iters=0.
+// ======== Prepare: bootstrap history using fine timesteps then doubling ========
+// Mirrors orbit.js Cosmos.prototype.prepare() (ported from 3D to 2D ring coordinates).
+//
+// Strategy: scale down to 2^-iters of full step size, reverse direction, run leapfrog
+// for n-1 steps to seed the history, then iters times: run n more multistep steps and
+// subsample every-other entry to double the effective step size.  Finally reverse time.
+// The original position is always a subsampled endpoint so no save/restore is needed.
 
 Cosmos2D.prototype.prepare = function() {
     const rings = this.rings;
-    const n = rings.length;
-    const points = this.points;
+    const nRings = rings.length;
+    const n = this.points;
+    const iters = 10;
+    const big = (1 << iters) * 1.0;  // 1024.0
 
-    // Reverse velocities (run backward in time)
-    for (let i = 0; i < n; i++) { rings[i].v.y = -rings[i].v.y; rings[i].v.z = -rings[i].v.z; }
+    // Scale down to 2^-iters of full step size and reverse direction.
+    // mass scales as inc^2, l (angular momentum) as inc, v as inc (and negated).
+    for (let i = 0; i < nRings; i++) {
+        const r = rings[i];
+        r.mass /= big * big;
+        if (!r.fixed) {
+            r.l   /= big;
+            r.v.y  = -r.v.y / big;
+            r.v.z  = -r.v.z / big;
+        }
+    }
 
-    // Measure accelerations at the starting position
+    // Measure accelerations at the starting position.
     this.measureAccelerations();
 
-    // Seed initial history slot: ov[head] = v - a/2  (leapfrog is between-step velocity)
+    // Seed ov[head] = v - a/2  (leapfrog half-step velocity between p[-1] and p[0]).
     const head0 = rings[0].head;
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < nRings; i++) {
         const r = rings[i];
         r.oa[head0].y = r.a.y;  r.oa[head0].z = r.a.z;
         r.ov[head0].y = r.v.y - r.a.y * 0.5;
         r.ov[head0].z = r.v.z - r.a.z * 0.5;
     }
 
-    // Take `points` leapfrog steps backward to fill history
-    for (let iStep = 0; iStep < points; iStep++) {
-        for (let i = 0; i < n; i++) stepRing1(rings[i]);
+    // Take n-1 Verlet steps backward, giving n total history points (seed + n-1).
+    for (let iStep = 1; iStep < n; iStep++) {
+        for (let i = 0; i < nRings; i++) {
+            if (!rings[i].fixed) stepRing1(rings[i]);
+        }
         this.measureAccelerations();
         this.recordStep();
     }
 
-    // Reverse: swap velocities (shifted by one), swap accelerations, negate and replay forward
-    const head = rings[0].head;
-    for (let i = 0; i < n; i++) {
-        const r = rings[i];
-
-        // Swap velocity history (shifted by one to account for leapfrog half-step offset)
-        for (let k = 0; k < Math.floor(points / 2); k++) {
-            const ia = head - k, ib = head - points + 1 + k;
-            let tmp;
-            tmp = r.ov[ia].y; r.ov[ia].y = r.ov[ib].y; r.ov[ib].y = tmp;
-            tmp = r.ov[ia].z; r.ov[ia].z = r.ov[ib].z; r.ov[ib].z = tmp;
+    // Double the step size iters times.  Each iteration: run n more multistep steps
+    // to get 2n entries, then subsample adjacent pairs into n coarse entries and scale.
+    for (let iIter = 0; iIter < iters; iIter++) {
+        for (let iStep = 0; iStep < n; iStep++) {
+            this.multistep();
         }
 
-        // Swap acceleration history
-        for (let k = 0; k < Math.floor((points + 1) / 2); k++) {
-            const ia = head - k, ib = head - points + k;
+        // Subsample: coarse_ov = fine_ov[iOld] + fine_ov[iOld-1]  (displacement sums)
+        //            coarse_oa = fine_oa[iOld] * 4                 (dt doubles -> dt^2 * 4)
+        // Forward order is safe: writes go to head-iHist, reads from head-2*iHist (always lower).
+        const head = rings[0].head;
+        for (let i = 0; i < nRings; i++) {
+            const r = rings[i];
+            for (let iHist = 0; iHist < n; iHist++) {
+                const iNew = head - iHist;
+                const iOld = head - 2 * iHist;
+                const vy = r.ov[iOld].y + r.ov[iOld - 1].y;
+                const vz = r.ov[iOld].z + r.ov[iOld - 1].z;
+                const ay = r.oa[iOld].y * 4;
+                const az = r.oa[iOld].z * 4;
+                r.ov[iNew].y = vy;  r.ov[iNew].z = vz;
+                r.oa[iNew].y = ay;  r.oa[iNew].z = az;
+            }
+            r.mass *= 4;
+            if (!r.fixed) r.l *= 2;
+            r.v.y = r.ov[head].y;  r.v.z = r.ov[head].z;
+            r.a.y = r.oa[head].y;  r.a.z = r.oa[head].z;
+        }
+    }
+
+    // One extra step shifts the walk-back window past the leapfrog-seed-containing pair.
+    this.multistep();
+
+    // Reverse: negate velocities, swap to forward-time order, walk position back to origin.
+    const head = rings[0].head;
+    for (let i = 0; i < nRings; i++) {
+        const r = rings[i];
+
+        // Reverse acceleration history (n+1 entries: head down to head-n).
+        for (let k = 0; k < (n + 1) >> 1; k++) {
+            const ia = head - k, ib = head + k - n;
             let tmp;
             tmp = r.oa[ia].y; r.oa[ia].y = r.oa[ib].y; r.oa[ib].y = tmp;
             tmp = r.oa[ia].z; r.oa[ia].z = r.oa[ib].z; r.oa[ib].z = tmp;
         }
 
-        // Negate velocities and walk position back to the original starting point
-        for (let k = 0; k < points; k++) {
+        // Negate n+1 velocities (head down to head-n).
+        for (let k = 0; k <= n; k++) {
             r.ov[head - k].y = -r.ov[head - k].y;
             r.ov[head - k].z = -r.ov[head - k].z;
+        }
+
+        // Reverse velocity order (n entries: head down to head-n+1).
+        for (let k = 0; k < n >> 1; k++) {
+            const ia = head - k, ib = head + k + 1 - n;
+            let tmp;
+            tmp = r.ov[ia].y; r.ov[ia].y = r.ov[ib].y; r.ov[ib].y = tmp;
+            tmp = r.ov[ia].z; r.ov[ia].z = r.ov[ib].z; r.ov[ib].z = tmp;
+        }
+
+        // Walk position back to the original starting point and set v, a.
+        for (let k = 0; k < n; k++) {
             r.p.y += r.ov[head - k].y;
             r.p.z += r.ov[head - k].z;
         }
