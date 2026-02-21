@@ -926,14 +926,15 @@ function Ring(opts, inc) {
 
 Ring.prototype.setPoints = function(points) {
     // Circular buffers of length 2*history, aliased so oa[i+history] === oa[i]
-    // for i < 2*points+2.  head stays in [history, 2*history), so oa[head-k]
+    // for i < 2*points+1.  head stays in [history, 2*history), so oa[head-k]
     // for k in 0..points always refers to a valid distinct slot.
+    // history=2*points+1 because prepare() needs 2*points+1 distinct slots.
     // (same layout as Moon.setPoints in orbit.js)
-    var history = 2 * points + 2;
+    var history = 2 * points + 1;
     this.history = history;
     this.oa = new Array(2 * history);
     this.ov = new Array(2 * history);
-    for (var i = 0; i < 2 * points + 2; i++) {
+    for (var i = 0; i < history; i++) {
         this.oa[i] = { y: 0, z: 0 };
         this.oa[i + history] = this.oa[i];
         this.ov[i] = { y: 0, z: 0 };
@@ -1157,16 +1158,17 @@ Cosmos2D.prototype.multistep = function() {
 // Mirrors orbit.js Cosmos.prototype.prepare() (ported from 3D to 2D ring coordinates).
 //
 // Strategy: scale down to 2^-iters of full step size, reverse direction, run leapfrog
-// for n-1 steps to seed the history, then iters times: run n more multistep steps and
-// subsample every-other entry to double the effective step size.  Finally reverse time.
-// The original position is always a subsampled endpoint so no save/restore is needed.
+// for n-1 steps to seed the history, add one extra multistep (n+1 total, start at head-n),
+// then iters times: run n multisteps (2n+1 total), subsample every-other into head..head-n+1,
+// copy start acceleration to head-n (x4), correct scale factors.  Finally reverse time.
+// Negate and reverse only n velocities (not n+1): ov[head-n] is garbage and is ignored.
 
 Cosmos2D.prototype.prepare = function() {
     const rings = this.rings;
     const nRings = rings.length;
     const n = this.points;
-    const iters = 10;
-    const big = (1 << iters) * 1.0;  // 1024.0
+    const iters = 30;  // javascript cannot handle shifts of >= 31; 31 negates and 32 wraps around
+    const big = (1 << iters) * 1.0;
 
     // Scale down to 2^-iters of full step size and reverse direction.
     // mass scales as inc^2, l (angular momentum) as inc, v as inc (and negated).
@@ -1201,8 +1203,11 @@ Cosmos2D.prototype.prepare = function() {
         this.recordStep();
     }
 
+    // Add one more point, n+1 total, so start is at oa[head-n].
+    this.multistep();
+
     // Double the step size iters times.  Each iteration: run n more multistep steps
-    // to get 2n entries, then subsample adjacent pairs into n coarse entries and scale.
+    // to get 2n+1 entries, then subsample adjacent pairs into n coarse entries and scale.
     for (let iIter = 0; iIter < iters; iIter++) {
         for (let iStep = 0; iStep < n; iStep++) {
             this.multistep();
@@ -1224,15 +1229,16 @@ Cosmos2D.prototype.prepare = function() {
                 r.ov[iNew].y = vy;  r.ov[iNew].z = vz;
                 r.oa[iNew].y = ay;  r.oa[iNew].z = az;
             }
+            // For start, copy acceleration; leave ov[head-n] garbage (reading ov[head-2n-1]
+            // would be illegal).
+            r.oa[head - n].y = r.oa[head - 2*n].y * 4;
+            r.oa[head - n].z = r.oa[head - 2*n].z * 4;
             r.mass *= 4;
             if (!r.fixed) r.l *= 2;
             r.v.y = r.ov[head].y;  r.v.z = r.ov[head].z;
             r.a.y = r.oa[head].y;  r.a.z = r.oa[head].z;
         }
     }
-
-    // One extra step shifts the walk-back window past the leapfrog-seed-containing pair.
-    this.multistep();
 
     // Reverse: negate velocities, swap to forward-time order, walk position back to origin.
     const head = rings[0].head;
@@ -1247,8 +1253,8 @@ Cosmos2D.prototype.prepare = function() {
             tmp = r.oa[ia].z; r.oa[ia].z = r.oa[ib].z; r.oa[ib].z = tmp;
         }
 
-        // Negate n+1 velocities (head down to head-n).
-        for (let k = 0; k <= n; k++) {
+        // Negate n velocities (head down to head-n+1); ov[head-n] is garbage.
+        for (let k = 0; k < n; k++) {
             r.ov[head - k].y = -r.ov[head - k].y;
             r.ov[head - k].z = -r.ov[head - k].z;
         }
