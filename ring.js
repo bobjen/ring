@@ -869,6 +869,8 @@ function ringForce(yRing, zRing, yPoint, zPoint) {
 
     if (rd === 0.0) {
         // Ring collapsed to a point mass
+
+        if (pd === 0) return { fy: 0, fz: 0 };
         const dist2 = z * z + pd;
         const dist3 = dist2 * Math.sqrt(dist2);
         return { fy: -yPoint / dist3, fz: -z / dist3 };
@@ -905,11 +907,11 @@ function ringForce(yRing, zRing, yPoint, zPoint) {
 // Mass is scaled by inc^2, velocity and angular momentum by inc.
 // This matches orbit.js's convention so the step functions need no dt factors.
 
-function Ring(opts, inc) {
+function Ring(opts, inc, points) {
     this.p     = { y: opts.y || 0, z: opts.z || 0 };
     this.v     = { y: (opts.vy || 0) * inc, z: (opts.vz || 0) * inc };
     this.a     = { y: 0, z: 0 };
-    this.mass  = ((opts.mass !== undefined) ? opts.mass : 1) * inc * inc;
+    this.mass  = ((opts.mass !== undefined) ? opts.mass : 0) * inc * inc;
     // Angular momentum per unit mass (conserved): l = Y^2 * dφ/dt.
     // Produces centrifugal acceleration l^2/Y^3 in the +Y direction.
     // For a Keplerian circular orbit around central mass M, set l = sqrt(M*Y).
@@ -919,12 +921,9 @@ function Ring(opts, inc) {
     this.l     = l_val * inc;
     this.color  = opts.color  || "#ffffff";
     this.radius = (opts.radius !== undefined) ? opts.radius : 3;
-    this.fixed  = opts.fixed  || false;  // if true, position never changes
+    this.fixed  = opts.fixed  || false;  // if true, radius (p.y) never changes
     this.trail  = [];
-    // oa/ov allocated by setPoints()
-}
 
-Ring.prototype.setPoints = function(points) {
     // Circular buffers of length 2*history, aliased so oa[i+history] === oa[i]
     // for i < 2*points+1.  head stays in [history, 2*history), so oa[head-k]
     // for k in 0..points always refers to a valid distinct slot.
@@ -990,8 +989,8 @@ function Cosmos2D(opts) {
     this.time     = 0;
 
     const inc = this.inc;
-    this.rings = (opts.moons || []).map(function(m) { return new Ring(m, inc); });
-    this.rings.forEach(function(r) { r.setPoints(opts.points || 8); });
+    const points = this.points;
+    this.rings = (opts.moons || []).map(function(m) { return new Ring(m, inc, points); });
 
     this.prepare();
 }
@@ -1001,24 +1000,30 @@ function Cosmos2D(opts) {
 Cosmos2D.prototype.measureAccelerations = function() {
     const rings = this.rings;
     const n = rings.length;
-    for (let i = 0; i < n; i++) { rings[i].a.y = 0; rings[i].a.z = 0; }
     for (let i = 0; i < n; i++) {
-        if (rings[i].fixed) continue;  // fixed bodies never accelerate
+        const ring = rings[i];
+        let ay = 0;
+        let az = 0;
+        const y = ring.p.y;
+        const z = ring.p.z;
+        const l = ring.l;
         // Centrifugal term from conserved angular momentum: a_Y += l^2/Y^3
         // (l is already scaled by inc, mass by inc^2, so a is in scaled units)
-        if (rings[i].l !== 0) {
-            const y = rings[i].p.y;
-            rings[i].a.y += (rings[i].l * rings[i].l) / (y * y * y);
+        if (y !== 0 && !ring.fixed) {
+            ay += (l * l) / (y * y * y);
         }
         for (let j = 0; j < n; j++) {
-            // Skip self-force for near-axis bodies (they approximate point masses,
-            // where self-gravity is unphysical and diverges as y→0)
-            if (i === j && rings[i].p.y < 0.5) continue;
-            const f = ringForce(rings[j].p.y, rings[j].p.z, rings[i].p.y, rings[i].p.z);
+            const other = rings[j];
+            const om = other.mass;
+            if (om === 0) continue;
+            const f = ringForce(other.p.y, other.p.z, y, z);
             // rings[j].mass is already scaled by inc^2, so a = mass_scaled * f is in scaled units
-            rings[i].a.y += rings[j].mass * f.fy;
-            rings[i].a.z += rings[j].mass * f.fz;
+            ay += om * f.fy;
+            az += om * f.fz;
         }
+        if (ring.fixed) ay = 0;
+        ring.a.y = ay;
+        ring.a.z = az;
     }
 };
 
@@ -1145,7 +1150,6 @@ Cosmos2D.prototype.multistep = function() {
     const fn = stepFns[this.points];
     const rings = this.rings;
     for (let i = 0; i < rings.length; i++) {
-        if (rings[i].fixed) continue;
         fn(rings[i]);
         // Atomic repulsion: rings cannot have negative radius
         if (rings[i].p.y < 0) rings[i].p.y = 0;
@@ -1175,11 +1179,9 @@ Cosmos2D.prototype.prepare = function() {
     for (let i = 0; i < nRings; i++) {
         const r = rings[i];
         r.mass /= big * big;
-        if (!r.fixed) {
-            r.l   /= big;
-            r.v.y  = -r.v.y / big;
-            r.v.z  = -r.v.z / big;
-        }
+        r.l   /= big;
+        r.v.y  = -r.v.y / big;
+        r.v.z  = -r.v.z / big;
     }
 
     // Measure accelerations at the starting position.
@@ -1189,15 +1191,18 @@ Cosmos2D.prototype.prepare = function() {
     const head0 = rings[0].head;
     for (let i = 0; i < nRings; i++) {
         const r = rings[i];
-        r.oa[head0].y = r.a.y;  r.oa[head0].z = r.a.z;
-        r.ov[head0].y = r.v.y - r.a.y * 0.5;
+        if (!r.fixed) {
+            r.oa[head0].y = r.a.y;
+            r.ov[head0].y = r.v.y - r.a.y * 0.5;
+        }
+        r.oa[head0].z = r.a.z;        
         r.ov[head0].z = r.v.z - r.a.z * 0.5;
     }
 
     // Take n-1 Verlet steps backward, giving n total history points (seed + n-1).
     for (let iStep = 1; iStep < n; iStep++) {
         for (let i = 0; i < nRings; i++) {
-            if (!rings[i].fixed) stepRing1(rings[i]);
+            stepRing1(rings[i]);
         }
         this.measureAccelerations();
         this.recordStep();
@@ -1234,7 +1239,7 @@ Cosmos2D.prototype.prepare = function() {
             r.oa[head - n].y = r.oa[head - 2*n].y * 4;
             r.oa[head - n].z = r.oa[head - 2*n].z * 4;
             r.mass *= 4;
-            if (!r.fixed) r.l *= 2;
+            r.l *= 2;
             r.v.y = r.ov[head].y;  r.v.z = r.ov[head].z;
             r.a.y = r.oa[head].y;  r.a.z = r.oa[head].z;
         }
@@ -1340,8 +1345,10 @@ Cosmos2D.prototype.display = function(canvas, ctx) {
 // work:      integration steps per frame
 // points:    multistep order 1..15 (default 8, step1=Verlet, step15=highest accuracy)
 
-function ring(canvasId, opts) {
-    const canvas = document.getElementById(canvasId);
+function ring(canvasOrId, opts) {
+    const canvas = (typeof canvasOrId === "string")
+        ? document.getElementById(canvasOrId)
+        : canvasOrId;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 

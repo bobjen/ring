@@ -2,6 +2,7 @@
 <html>
 <head>
 <title>Ring Simulator Test</title>
+<script src="ring.js"></script>
 <style>
 body { background: #111; color: #ccc; font-family: monospace; margin: 20px; }
 canvas { border: 1px solid #444; display: block; margin: 10px 0; }
@@ -10,52 +11,17 @@ canvas { border: 1px solid #444; display: block; margin: 10px 0; }
 <body>
 <h2>Ring Simulator Test</h2>
 
-<p>Force verification (see browser console): ringForce(5, 2, 4, 2) should match
-testforce.cpp output for the ring at (0,5,2) acting on point at (0,4,2).
-The force is purely radial (fy nonzero, fz=0) since both are at z=2.</p>
-
 <p>Click canvas to pause/resume.</p>
 
 <h3>Three rings, equal mass, mutual attraction (trails enabled)</h3>
-<canvas id="c1" width="600" height="400"></canvas>
-
-<h3>Five rings in a pentagon, equal mass</h3>
-<canvas id="c2" width="600" height="400"></canvas>
-
-<h3>Dyson torus: central ring (green) + 8 rings (red) in circle of radius 0.1, all l=1</h3>
-<p>Sun mass=1.0 (fixed). Central ring at Y=1, Z=0, l=1. Eight massless rings placed in
-a circle of radius 0.1 around the central ring, all with l=1 and tangential speed 0.1
-in the YZ cross-section. Do they orbit the central ring or disperse?</p>
-<canvas id="c3" width="600" height="400"></canvas>
-
-<h3>Same as above but specified with vx (azimuthal speed) instead of l</h3>
-<p>Green moon: vx=1, vy=0, vz=0. Red moon: vx=sqrt(0.99) (= l/y = 0.99/sqrt(0.99)), vy=-0.1, vz=0.
-Should be identical to c3.</p>
-<canvas id="c4" width="600" height="400"></canvas>
-
-<script src="ring.js"></script>
+<canvas width="600" height="400">
 <script>
-// Force verification: compare against testforce.cpp
-// Ring at (y=5, z=2), point at (y=4, z=2).
-// z separation = 0, so force is purely radial (fz should be 0).
-// This should match the "odd-interpolate diff" from testforce.cpp.
-// Run testforce with large nMoons (e.g. 8192) to get the reference "odd" value.
-// ringForce(yRing, zRing, yPoint, zPoint)
-// Ring at y=5,z=2 acting on point at y=4,z=2.
-// z-separation is 0, so fz should be ~0 and fy is the full radial force.
-// Point is inside the ring (y=4 < y_ring=5), so fy should be positive (attracted outward).
-// Python reference: fy=0.0493416525331284, fz=0
-// Compare against: build/run testforce 8192 and check "interpolate" line (a._y component).
-var f = ringForce(5, 2, 4, 2);
-console.log("ringForce(5, 2, 4, 2) fy =", f.fy, " (ref: 0.0493416525331284)");
-console.log("ringForce(5, 2, 4, 2) fz =", f.fz, " (ref: 0)");
-
 // Three rings orbiting a central sun (mass 100, modeled as a tiny ring near the axis).
 // Each ring is given l = sqrt(M_sun * Y) so it starts in a stable circular orbit.
 // Small perturbations (vy, vz) let us watch the epicyclic oscillations.
 // The sun is not shown (radius:0) but exerts gravity and is included in the moons list.
 var Msun = 100;
-ring("c1", {
+ring(document.currentScript.parentElement, {
     background: "#000",
     scale: 40,
     ymargin: 20,
@@ -78,7 +44,12 @@ ring("c1", {
           l: Math.sqrt(Msun * 7) },
     ]
 });
+</script>
+</canvas>
 
+<h3>Five rings in a pentagon, equal mass</h3>
+<canvas width="600" height="400">
+<script>
 // Five rings in a torus cross-section, Keplerian orbits, equally spaced in radius
 (function() {
     var moons = [];
@@ -87,11 +58,11 @@ ring("c1", {
     moons.push({ y: 0.01, z: 0, vy: 0, vz: 0, mass: Msun, color: "#ffffff", radius: 4, l: 0, fixed: true });
     for (var i = 0; i < 5; i++) {
         var Y = 3 + i * 1.5;  // radii: 3, 4.5, 6, 7.5, 9
-        var dz = (i % 2 === 0) ? 0.3 : -0.3;  // slight vertical offset
+        var dz = (i % 2 === 0) ? 1 : -1;  // some vertical offset
         moons.push({ y: Y, z: dz, vy: 0, vz: 0, mass: 1, color: colors[i], radius: 4,
                      l: Math.sqrt(Msun * Y) });
     }
-    ring("c2", {
+    ring(document.currentScript.parentElement, {
         background: "#000",
         scale: 30,
         ymargin: 20,
@@ -105,7 +76,15 @@ ring("c1", {
         moons: moons,
     });
 })();
+</script>
+</canvas>
 
+<h3>Dyson torus: central ring (green) + 8 rings (red) in circle of radius 0.1, all l=1</h3>
+<p>Sun mass=1.0 (fixed). Central ring at Y=1, Z=0, l=1. Eight massless rings placed in
+a circle of radius 0.1 around the central ring, all with l=1 and tangential speed 0.1
+in the YZ cross-section. Do they orbit the central ring or disperse?</p>
+<canvas width="600" height="400">
+<script>
 // Dyson torus: central ring at (Y=1,Z=0) plus 8 rings in a circle of radius 0.1.
 // All rings massless, l=1. Single moon at theta=0 on circle: Y=1.1, Z=0, vz=0.1.
 // increment=2*pi, work=30 => exactly 30 steps/orbit (minimum for long-term accuracy).
@@ -115,31 +94,7 @@ ring("c1", {
         { y: 1, z: 0, vy: 0, vz: 0, mass: 0, color: "#44ff44", radius: 4, l: 1 },
         { y: Math.sqrt(0.99), z: 0.1, vy: -0.1, vz: 0, mass: 0, color: "#ff4444", radius: 3, l: 0.99 },
     ];
-    ring("c3", {
-        background: "#000",
-        scale: 400,
-        ymargin: 10,
-        increment: 2 * Math.PI,
-        work: 60,
-        framerate: 40,
-        trail: true,
-        traillen: 1200,
-        fade: 0.002,
-        stop: false,
-        moons: moons,
-    });
-})();
-
-// Same as c3 but using vx (azimuthal speed) instead of l.
-// Green: y=1, vx=1  =>  l = 1*1 = 1  (same as c3)
-// Red:   y=sqrt(0.99), vx=sqrt(0.99)  =>  l = sqrt(0.99)*sqrt(0.99) = 0.99  (same as c3)
-(function() {
-    const moons = [
-        { y: 0, z: 0, mass: 1.0, color: "#ffff00", radius: 5, l: 0, fixed: true },
-        { y: 1, z: 0, vy: 0, vz: 0, mass: 0, color: "#44ff44", radius: 4, vx: 1 },
-        { y: Math.sqrt(0.99), z: 0.1, vy: -0.1, vz: 0, mass: 0, color: "#ff4444", radius: 3, vx: Math.sqrt(0.99) },
-    ];
-    ring("c4", {
+    ring(document.currentScript.parentElement, {
         background: "#000",
         scale: 400,
         ymargin: 10,
@@ -154,5 +109,81 @@ ring("c1", {
     });
 })();
 </script>
+</canvas>
+
+<h3>Same as above but specified with vx (azimuthal speed) instead of l</h3>
+<p>Green moon: vx=1, vy=0, vz=0. Red moon: vx=sqrt(0.99) (= l/y = 0.99/sqrt(0.99)), vy=-0.1, vz=0.
+Should be identical to c3.</p>
+<canvas width="600" height="400">
+<script>
+// Same as c3 but using vx (azimuthal speed) instead of l.
+// Green: y=1, vx=1  =>  l = 1*1 = 1  (same as c3)
+// Red:   y=sqrt(0.99), vx=sqrt(0.99)  =>  l = sqrt(0.99)*sqrt(0.99) = 0.99  (same as c3)
+(function() {
+    const moons = [
+        { mass: 1.0, color: "#ffff00", radius: 5, fixed: true },
+        { y: 1, color: "#44ff44", radius: 4, vx: 1 },
+        { y: Math.sqrt(0.99), z: 0.1, vy: -0.1, color: "#ff4444", radius: 3, vx: Math.sqrt(0.99) },
+    ];
+    ring(document.currentScript.parentElement, {
+        background: "#000",
+        scale: 400,
+        ymargin: 10,
+        increment: 2 * Math.PI,
+        work: 60,
+        framerate: 40,
+        trail: true,
+        traillen: 1200,
+        fade: 0.002,
+        stop: false,
+        moons: moons,
+    });
+})();
+</script>
+</canvas>
+
+<h3>Three objects, all have mass</h3>
+<p>Yellow sun (mass=0.9, fixed y=0.2). Green planet (mass 0.09). Red moon (mass 0.01). Various offsets.
+<canvas width="600" height="400">
+<script>
+(function() {
+    const moons = [
+        { y: 0.2, mass: 0.9, color: "#ffff00", radius: 5, fixed: true },
+        { y: 1, z: 0.2, mass: 0.09, color: "#44ff44", radius: 4, l: 1 },
+        { y: Math.sqrt(0.91), z: 0.3, vy: -0.3, mass: 0.01, color: "#ff4444", radius: 3, l: 0.91 },
+    ];
+    ring(document.currentScript.parentElement, {
+        background: "#000",
+        scale: 400,
+        points: 8,
+        ymargin: 10,
+        increment: 2 * Math.PI,
+        work: 1000,
+        framerate: 40,
+        trail: true,
+        traillen: 1200,
+        fade: 0.002,
+        stop: false,
+        moons: moons,
+    });
+})();
+</script>
+</canvas>
+
+<p>Force verification (see browser console): ringForce(5, 2, 4, 2) should match
+testforce.cpp output for the ring at (0,5,2) acting on point at (0,4,2).
+The force is purely radial (fy nonzero, fz=0) since both are at z=2.</p>
+
+<script>
+// Ring at y=5,z=2 acting on point at y=4,z=2.
+// z-separation is 0, so fz should be ~0 and fy is the full radial force.
+// Point is inside the ring (y=4 < y_ring=5), so fy should be positive (attracted outward).
+// Python reference: fy=0.0493416525331284, fz=0
+// Compare against: build/run testforce 8192 and check "interpolate" line (a._y component).
+var f = ringForce(5, 2, 4, 2);
+console.log("ringForce(5, 2, 4, 2) fy =", f.fy, " (ref: 0.0493416525331284)");
+console.log("ringForce(5, 2, 4, 2) fz =", f.fz, " (ref: 0)");
+</script>
+
 </body>
 </html>
