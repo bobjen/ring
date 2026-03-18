@@ -79,8 +79,8 @@ ring(document.currentScript.parentElement, {
 </script>
 </canvas>
 
-<h3>Dyson torus: central ring (green) + 8 rings (red) in circle of radius 0.1, all l=1</h3>
-<p>Sun mass=1.0 (fixed). Central ring at Y=1, Z=0, l=1. Eight massless rings placed in
+<h3>Dyson torus: central ring (green) + 1 ring (red) in circle of radius 0.1, all l=1</h3>
+<p>Sun mass=1.0 (fixed). Central ring at Y=1, Z=0, l=1. One massless ring placed in
 a circle of radius 0.1 around the central ring, all with l=1 and tangential speed 0.1
 in the YZ cross-section. Do they orbit the central ring or disperse?</p>
 <canvas width="600" height="400">
@@ -141,6 +141,41 @@ Should be identical to c3.</p>
 })();
 </script>
 </canvas>
+
+
+
+<h3>16 rings in a circular Dyson swarm</h3>
+<canvas width="600" height="400">
+<script>
+// Five rings in a torus cross-section, Keplerian orbits, equally spaced in radius
+(function() {
+    var moons = [];
+    var colors = ["#ff4444","#ff9900","#ffff00","#44ff44","#4444ff"];
+    // Sun
+    moons.push({ y: 0, z: 0, vy: 0, vz: 0, mass: 1, color: "#ffffff", radius: 4, l: 0, fixed: true });
+    const nMoons = 16;
+    for (var i = 0; i < nMoons; i++) {
+        const r = 0.1;
+        const theta = i*2*Math.PI/nMoons;
+        moons.push({ y: 1+r*sin(theta), z: r*cos(i*theta), vx: Math.sqrt(1-r*r), vy: r*cos(theta), vz: -r*sin(theta), mass: 0, color: colors[i], radius: 4});
+    }
+    ring(document.currentScript.parentElement, {
+        background: "#000",
+        scale: 30,
+        ymargin: 20,
+        increment: 0.06,
+        work: 30,
+        framerate: 40,
+        trail: true,
+        traillen: 600,
+        fade: 0.0008,
+        stop: false,
+        moons: moons,
+    });
+})();
+</script>
+</canvas>
+
 
 <h3>Three objects, all have mass</h3>
 <p>Yellow sun (mass=0.9, fixed y=0.2). Green planet (mass 0.09). Red moon (mass 0.01). Various offsets.
