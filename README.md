@@ -23,7 +23,7 @@ Integration uses the same explicit symmetric multistep method as `orbit.js`
 
 Angular momentum `l = Y² dφ/dt` is stored as a conserved quantity rather than
 tracking azimuthal velocity directly, preventing cumulative errors from causing
-drift.
+drift. (Claude is the one that thought of doing it that way).
 
 ## Coordinate system
 
