@@ -5,7 +5,8 @@ sharing a common axis, displayed as a YZ cross-section.
 
 Gravitational force computation ported from `ringforce.cpp` by Bob Jenkins
 (2017, public domain).  JavaScript simulator written by Claude 4.5 (February
-2026) with interface identical to `orbit.js`.
+2026) with interface identical to `orbit.js`, using a time-reversible 8th 
+order multistep method (far more accurate than Verlet or Runge-Kutta).
 
 Documentation and live demos: https://burtleburtle.net/bob/js/ring.html
 
