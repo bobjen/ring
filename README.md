@@ -14,7 +14,8 @@ Documentation and live demos: https://burtleburtle.net/bob/js/ring.html
 Each ring is modeled as 8,192 equally-spaced point masses arranged in a circle
 around the X=0, Y=0 axis.  The gravitational force between two rings is
 computed analytically using Chebyshev interpolation of elliptic integrals,
-avoiding the need to simulate all 8,192² pairs explicitly.
+avoiding the need to simulate all 8,192² pairs explicitly. It cannot handle
+point masses, it only models rings.
 
 Integration uses the same explicit symmetric multistep method as `orbit.js`
 (1–15 prior accelerations, default 8).
