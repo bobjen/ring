@@ -94,6 +94,49 @@
         return moons;
     }
 
+    // Like sampleOrbit but runs the full N-ring system so ring-ring interactions
+    // are included.  Used to iterate samples to self-consistency.
+    function sampleOrbitFull(sunR, samples) {
+        var cosmos = new Cosmos2D(Object.assign({}, BASE,
+                                  { moons: makeMoons(samples, sunR) }));
+        var ring0 = cosmos.rings[1];
+        var inc   = cosmos.inc;
+
+        var traj = [[ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]];
+        var prevVz = 0, wentNeg = false, wentPos = false, T = 0;
+
+        for (var i = 0; i < 100000; i++) {
+            cosmos.multistep();
+            var vz = ring0.v.z;
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+
+            if (!wentNeg && vz < 0)             wentNeg = true;
+            if ( wentNeg && !wentPos && vz >= 0) wentPos = true;
+            if ( wentPos && vz < 0) {
+                var alpha = prevVz / (prevVz - vz);
+                T = i + alpha;
+                break;
+            }
+            prevVz = vz;
+        }
+
+        var out = [];
+        for (var k = 0; k < N; k++) {
+            var t    = k * T / N;
+            var idx  = Math.floor(t);
+            var frac = t - idx;
+            var s0   = traj[idx];
+            var s1   = traj[idx + 1] || traj[idx];
+            out.push({
+                y:  s0[0] + frac * (s1[0] - s0[0]),
+                z:  s0[1] + frac * (s1[1] - s0[1]),
+                vy: s0[2] + frac * (s1[2] - s0[2]),
+                vz: s0[3] + frac * (s1[3] - s0[3]),
+            });
+        }
+        return out;
+    }
+
     // Run the 8-ring system forward until ring 0 reaches the z-minimum (half orbit).
     // Returns Δy = y(T/2) - y(0); zero for a closed symmetric orbit.
     // Uses the sampled orbit for initial conditions and interpolates the vz crossing.
@@ -158,6 +201,22 @@
 
     var sunR    = findSunR(0.5, 20, 1e-6);
     var samples = sampleOrbit(sunR);
+
+    // Refine samples to self-consistency under the full N-ring system.
+    // sunR is kept fixed — ring-ring forces are symmetric so the required
+    // sunR barely changes, but the sample positions do need correction.
+    var lg = document.getElementById('log');
+    lg.textContent += '\nRefining samples with full ' + N + '-ring system:\n';
+    for (var iter = 0; iter < 6; iter++) {
+        var s2 = sampleOrbitFull(sunR, samples);
+        var maxD = 0;
+        for (var k = 0; k < N; k++)
+            maxD = Math.max(maxD, Math.abs(s2[k].y - samples[k].y),
+                                  Math.abs(s2[k].z - samples[k].z));
+        samples = s2;
+        lg.textContent += '  iter ' + iter + ': maxDelta=' + maxD.toExponential(3) + '\n';
+        if (maxD < 1e-9) break;
+    }
 
     // Animate the result
     ring('cv', Object.assign({}, BASE, {
