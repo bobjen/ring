@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>8-Ring Dyson Swarm</title>
+  <script src="ring.js"></script>
+</head>
+<body bgcolor="#000000" text="#ffffff" style="font-family:monospace;">
+
+<p><canvas id="cv" width="600" height="400" style="border:1px solid #ffffff;"></canvas></p>
+<pre id="log" style="color:#00ff00;font-size:11px;max-height:300px;overflow:auto;"></pre>
+
+<script>
+(function() {
+    var N = 32;
+    var rm = 0.0001;
+    var colors = [];
+    for (var ci = 0; ci < N; ci++) {
+        var h = (ci * 360 / N) | 0;
+        colors.push('hsl(' + h + ',100%,60%)');
+    }
+
+    // r and rm are user choices: r sets the orbit amplitude (both the Y and Z
+    // extents of the orbit scale with r), rm sets the ring mass.
+    // The solver only varies sunR to close the orbit for the given r and rm.
+    var r = 0.2;   // orbit radius in YZ — sets the physical size; do not vary in solver
+
+    var BASE = { increment: 0.1, work: 20, points: 8, trail: false };
+
+    // Run a single ring around the oblate sun for one full period, recording its
+    // trajectory.  Return 8 equally-time-spaced samples (k*T/8, k=0..7) as the
+    // initial conditions for the 8 rings.  This naturally accounts for the ring
+    // speeding up near the sun and slowing down at the extremes, unlike equally-
+    // spaced angles which assume constant angular speed.
+    //
+    // States are stored as [y, z, vy_phys, vz_phys] (positions unscaled,
+    // velocities unscaled by dividing out inc).  Period detection uses the same
+    // vz zero-crossing interpolation as halfOrbitDy.
+    function sampleOrbit(sunR) {
+        var cosmos = new Cosmos2D(Object.assign({}, BASE, { moons: [
+            { y: sunR, z: 0, vy: 0, vz: 0, mass: 1 - N*rm, l: 0, fixed: true },
+            { y: Math.sqrt(1 - r*r), z: r, l: 1 - r*r, vy: -r, vz: 0, mass: rm }
+        ]}));
+        var ring0 = cosmos.rings[1];
+        var inc   = cosmos.inc;
+
+        // traj[i] = state after i multistep calls: [y, z, vy, vz] (physical units)
+        var traj = [[ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]];
+        var prevVz = 0, wentNeg = false, wentPos = false, T = 0;
+
+        for (var i = 0; i < 100000; i++) {
+            cosmos.multistep();
+            var vz = ring0.v.z;
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+
+            if (!wentNeg && vz < 0)             wentNeg = true;
+            if ( wentNeg && !wentPos && vz >= 0) wentPos = true;
+            if ( wentPos && vz < 0) {
+                // Interpolate: prevVz > 0, vz < 0 → crossing at fraction alpha into this step
+                var alpha = prevVz / (prevVz - vz);
+                T = i + alpha;   // period in step units
+                break;
+            }
+            prevVz = vz;
+        }
+
+        // Sample at 8 equal-time intervals k*T/8 with linear interpolation
+        var samples = [];
+        for (var k = 0; k < N; k++) {
+            var t    = k * T / N;
+            var idx  = Math.floor(t);
+            var frac = t - idx;
+            var s0   = traj[idx];
+            var s1   = traj[idx + 1] || traj[idx];
+            samples.push({
+                y:  s0[0] + frac * (s1[0] - s0[0]),
+                z:  s0[1] + frac * (s1[1] - s0[1]),
+                vy: s0[2] + frac * (s1[2] - s0[2]),
+                vz: s0[3] + frac * (s1[3] - s0[3]),
+            });
+        }
+        return samples;
+    }
+
+    // Build the full moon list from 8 sampled states + the oblate sun.
+    function makeMoons(samples, sunR) {
+        var moons = [];
+        moons.push({ y: sunR, z: 0, vy: 0, vz: 0,
+                     mass: 1 - N*rm, l: 0, fixed: true, color: '#ffff00', radius: 4 });
+        for (var i = 0; i < N; i++) {
+            moons.push({ y: samples[i].y, z: samples[i].z,
+                         vy: samples[i].vy, vz: samples[i].vz,
+                         l: 1 - r*r, mass: rm, color: colors[i], radius: 3 });
+        }
+        return moons;
+    }
+
+    // Run the 8-ring system forward until ring 0 reaches the z-minimum (half orbit).
+    // Returns Δy = y(T/2) - y(0); zero for a closed symmetric orbit.
+    // Uses the sampled orbit for initial conditions and interpolates the vz crossing.
+    function halfOrbitDy(sunR) {
+        var samples = sampleOrbit(sunR);
+        var cosmos  = new Cosmos2D(Object.assign({}, BASE,
+                                   { moons: makeMoons(samples, sunR) }));
+        var ring0   = cosmos.rings[1];
+        var y0      = ring0.p.y;
+        var wentNeg = false, prevVz = 0;
+
+        for (var i = 0; i < 50000; i++) {
+            cosmos.multistep();
+            var vz = ring0.v.z;
+            if (!wentNeg && vz < -1e-12) wentNeg = true;
+            if ( wentNeg && vz >= 0) {
+                var alpha  = -prevVz / (vz - prevVz);
+                return ring0.p.y - (1 - alpha) * ring0.v.y - y0;
+            }
+            prevVz = vz;
+        }
+        return ring0.p.y - y0;
+    }
+
+    // Scan sunR in [0, maxSun] at nScan points to find a sign change,
+    // then bisect to precision eps.  sunR is the only free parameter.
+    // Returns the bracket midpoint; the bracket [lo,hi] is kept tight enough
+    // that further Newton polish is unnecessary (the interpolation above means
+    // dy noise is now O(dt²) ≈ 1e-5, so eps=1e-6 is safely below signal).
+    function findSunR(maxSun, nScan, eps) {
+        var log  = document.getElementById('log');
+        var step = maxSun / nScan;
+        var prev = { s: 0, dy: halfOrbitDy(0) };
+        log.textContent += 'Scanning sunR  (r=' + r.toFixed(4) + '  rm=' + rm.toFixed(4) + '):\n';
+        log.textContent += '  sunR=0.000000  dy=' + prev.dy.toExponential(4) + '\n';
+
+        for (var i = 1; i <= nScan; i++) {
+            var s  = i * step;
+            var dy = halfOrbitDy(s);
+            log.textContent += '  sunR=' + s.toFixed(6) + '  dy=' + dy.toExponential(4) + '\n';
+            if (prev.dy * dy <= 0) {
+                var lo = prev.s, dlo = prev.dy;
+                var hi = s;
+                log.textContent += 'Bisecting [' + lo.toFixed(6) + ', ' + hi.toFixed(6) + '] ...\n';
+                for (var j = 0; j < 80; j++) {
+                    var mid = (lo + hi) * 0.5;
+                    var dm  = halfOrbitDy(mid);
+                    if (dlo * dm <= 0) { hi = mid; }
+                    else               { lo = mid; dlo = dm; }
+                    if (hi - lo < eps) break;
+                }
+                var sunR = (lo + hi) * 0.5;
+                log.textContent += 'Converged: sunR=' + sunR.toFixed(10) +
+                                   '  dy=' + halfOrbitDy(sunR).toExponential(4) + '\n';
+                return sunR;
+            }
+            prev = { s: s, dy: dy };
+        }
+        log.textContent += 'No root in [0, ' + maxSun + '] — try different r or rm.\n';
+        return 0;
+    }
+
+    var sunR    = findSunR(0.5, 20, 1e-6);
+    var samples = sampleOrbit(sunR);
+
+    // Animate the result
+    ring('cv', Object.assign({}, BASE, {
+        background: '#000000',
+        scale:    400,
+        ymargin:  20,
+        framerate: 40,
+        trail:    false,
+        traillen: 1,
+        fade:     0.3,
+        stop:     false,
+        moons:    makeMoons(samples, sunR),
+    }));
+
+    document.getElementById('log').textContent +=
+        '\nFinal: r=' + r.toFixed(8) + '  rm=' + rm.toFixed(6) +
+        '  sunR=' + sunR.toFixed(8) + '\n';
+})();
+</script>
+
+</body>
+</html>
