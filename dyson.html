@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dyson Swarm with Mass</title>
+  <script src="ring.js"></script>
+</head>
+<body bgcolor="#000000"
+text="#ffffff" link="#ffff00" vlink="#00ffff" alink="#0fffff">
+
+<p><canvas width="600" height="400" style="border:1px solid #ffffff;">
+<script>
+(function() {
+    var moons = [];
+    var colors = ["#ff00ff","#00ffff"];
+    const nMoons = 2;
+    const rm = 0.01; // ring mass
+    const q = 0;
+    // Sun
+    moons.push({ y: 0.0, z: 0, vy: 0, vz: -2*q/100, mass: 1-nMoons*rm, color: "#ffff00", radius: 4, l: 0, fixed: true });
+    for (var i = 0; i < nMoons; i++) {
+        const y = 1;
+        const r = 0.2;
+        const theta = i*2*Math.PI/nMoons;
+        const rs = r*Math.sin(theta);
+        const rc = r*Math.cos(theta);
+        moons.push({ y: Math.sqrt(y*y-rc*rc)+rs, z: rc, l: (y*y-r*r), vy: -rc, vz: rs+q, mass: rm, color: colors[i], radius: 4});
+    }
+    ring(document.currentScript.parentElement, {
+        background: "#000000",
+        scale: 400,
+        ymargin: 20,
+        increment: 0.1,
+        work: 20,
+        framerate: 40,
+        trail: true,
+        traillen: 2000,
+        fade: 0.1,
+        stop: false,
+        moons: moons,
+    });
+})();
+</script>
+</canvas>
+
+</body>
+</html>
