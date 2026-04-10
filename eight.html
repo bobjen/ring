@@ -12,7 +12,7 @@
 <script>
 (function() {
     var N = 32;
-    var rm = 0.0001;
+    var rm = 0.001;
     var colors = [];
     for (var ci = 0; ci < N; ci++) {
         var h = (ci * 360 / N) | 0;
@@ -63,19 +63,27 @@
             prevVz = vz;
         }
 
-        // Sample at 8 equal-time intervals k*T/8 with linear interpolation
+        // Extend traj to cover a second full orbit for the seam blend below.
+        var need = Math.ceil(2 * T) + 2;
+        while (traj.length <= need) {
+            cosmos.multistep();
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+        }
+
+        // Sample N points blended between orbit 1 and orbit 2: ring k gets
+        // (k/N)*orbit1[k] + (1-k/N)*orbit2[k], smoothing the seam at k=0/k=N-1.
         var samples = [];
         for (var k = 0; k < N; k++) {
-            var t    = k * T / N;
-            var idx  = Math.floor(t);
-            var frac = t - idx;
-            var s0   = traj[idx];
-            var s1   = traj[idx + 1] || traj[idx];
+            var w  = k / N;
+            var t1 = k * T / N,     i1 = Math.floor(t1), f1 = t1 - i1;
+            var t2 = T + k * T / N, i2 = Math.floor(t2), f2 = t2 - i2;
+            var p1 = traj[i1], q1 = traj[i1 + 1] || traj[i1];
+            var p2 = traj[i2], q2 = traj[i2 + 1] || traj[i2];
             samples.push({
-                y:  s0[0] + frac * (s1[0] - s0[0]),
-                z:  s0[1] + frac * (s1[1] - s0[1]),
-                vy: s0[2] + frac * (s1[2] - s0[2]),
-                vz: s0[3] + frac * (s1[3] - s0[3]),
+                y:  w*(p1[0]+f1*(q1[0]-p1[0])) + (1-w)*(p2[0]+f2*(q2[0]-p2[0])),
+                z:  w*(p1[1]+f1*(q1[1]-p1[1])) + (1-w)*(p2[1]+f2*(q2[1]-p2[1])),
+                vy: w*(p1[2]+f1*(q1[2]-p1[2])) + (1-w)*(p2[2]+f2*(q2[2]-p2[2])),
+                vz: w*(p1[3]+f1*(q1[3]-p1[3])) + (1-w)*(p2[3]+f2*(q2[3]-p2[3])),
             });
         }
         return samples;
@@ -120,18 +128,24 @@
             prevVz = vz;
         }
 
+        var need = Math.ceil(2 * T) + 2;
+        while (traj.length <= need) {
+            cosmos.multistep();
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+        }
+
         var out = [];
         for (var k = 0; k < N; k++) {
-            var t    = k * T / N;
-            var idx  = Math.floor(t);
-            var frac = t - idx;
-            var s0   = traj[idx];
-            var s1   = traj[idx + 1] || traj[idx];
+            var w  = k / N;
+            var t1 = k * T / N,     i1 = Math.floor(t1), f1 = t1 - i1;
+            var t2 = T + k * T / N, i2 = Math.floor(t2), f2 = t2 - i2;
+            var p1 = traj[i1], q1 = traj[i1 + 1] || traj[i1];
+            var p2 = traj[i2], q2 = traj[i2 + 1] || traj[i2];
             out.push({
-                y:  s0[0] + frac * (s1[0] - s0[0]),
-                z:  s0[1] + frac * (s1[1] - s0[1]),
-                vy: s0[2] + frac * (s1[2] - s0[2]),
-                vz: s0[3] + frac * (s1[3] - s0[3]),
+                y:  w*(p1[0]+f1*(q1[0]-p1[0])) + (1-w)*(p2[0]+f2*(q2[0]-p2[0])),
+                z:  w*(p1[1]+f1*(q1[1]-p1[1])) + (1-w)*(p2[1]+f2*(q2[1]-p2[1])),
+                vy: w*(p1[2]+f1*(q1[2]-p1[2])) + (1-w)*(p2[2]+f2*(q2[2]-p2[2])),
+                vz: w*(p1[3]+f1*(q1[3]-p1[3])) + (1-w)*(p2[3]+f2*(q2[3]-p2[3])),
             });
         }
         return out;
