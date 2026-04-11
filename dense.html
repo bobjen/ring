@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dense Self-Orbiting Torus</title>
+  <script src="ring.js"></script>
+</head>
+<body bgcolor="#000000" text="#ffffff" style="font-family:monospace;">
+
+<p><center><canvas id="cv" width="600" height="400" style="border:1px solid #ffffff;"><script>
+    document.getElementById("cv").width = window.innerWidth*0.6;
+    document.getElementById("cv").height = window.innerWidth*0.4;
+(function() {
+    var moons = [];
+    var colors = ["#ff00ff","#00ffff"];
+    const nMoons = 1;
+    const rm = 0.0; // ring mass
+    const q = 0;
+    // Sun
+    moons.push({ y: 1.0, mass: 1-nMoons*rm, color: "#ffff00", radius: 4, l: 1.295});
+    for (var i = 0; i < nMoons; i++) {
+        const y = 1;
+        const r = 0.2;
+        const theta = i*2*Math.PI/nMoons;
+        const rs = r*Math.sin(theta);
+        const rc = r*Math.cos(theta);
+        moons.push({ y: 1.0, z: 0.1, r, l: 0.70, vy: 0.6, vz: 0, mass: rm, color: colors[i], radius: 2});
+    }
+    ring(document.currentScript.parentElement, {
+        background: "#000000",
+        scale: window.innerWidth*0.4,
+        ymargin: 20,
+        increment: 0.1,
+        work: 20,
+        framerate: 40,
+        trail: true,
+        traillen: 2000,
+        fade: 0.1,
+        stop: false,
+        moons: moons,
+    });
+})();
+</script></canvas></center></p>
+
+</body>
+</html>

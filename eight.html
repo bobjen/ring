@@ -11,8 +11,8 @@
 
 <script>
 (function() {
-    var N = 32;
-    var rm = 0.001;
+    var N = 64;
+    var rm = 0.0005;
     var colors = [];
     for (var ci = 0; ci < N; ci++) {
         var h = (ci * 360 / N) | 0;
@@ -22,9 +22,9 @@
     // r and rm are user choices: r sets the orbit amplitude (both the Y and Z
     // extents of the orbit scale with r), rm sets the ring mass.
     // The solver only varies sunR to close the orbit for the given r and rm.
-    var r = 0.2;   // orbit radius in YZ — sets the physical size; do not vary in solver
+    var r = 0.4;   // orbit radius in YZ — sets the physical size; do not vary in solver
 
-    var BASE = { increment: 0.1, work: 20, points: 8, trail: false };
+    var BASE = { increment: 0.01, work: 2, points: 8, trail: false };
 
     // Run a single ring around the oblate sun for one full period, recording its
     // trajectory.  Return 8 equally-time-spaced samples (k*T/8, k=0..7) as the
@@ -184,17 +184,17 @@
         var log  = document.getElementById('log');
         var step = maxSun / nScan;
         var prev = { s: 0, dy: halfOrbitDy(0) };
-        log.textContent += 'Scanning sunR  (r=' + r.toFixed(4) + '  rm=' + rm.toFixed(4) + '):\n';
-        log.textContent += '  sunR=0.000000  dy=' + prev.dy.toExponential(4) + '\n';
+        // log.textContent += 'Scanning sunR  (r=' + r.toFixed(4) + '  rm=' + rm.toFixed(4) + '):\n';
+        // log.textContent += '  sunR=0.000000  dy=' + prev.dy.toExponential(4) + '\n';
 
         for (var i = 1; i <= nScan; i++) {
             var s  = i * step;
             var dy = halfOrbitDy(s);
-            log.textContent += '  sunR=' + s.toFixed(6) + '  dy=' + dy.toExponential(4) + '\n';
+            // log.textContent += '  sunR=' + s.toFixed(6) + '  dy=' + dy.toExponential(4) + '\n';
             if (prev.dy * dy <= 0) {
                 var lo = prev.s, dlo = prev.dy;
                 var hi = s;
-                log.textContent += 'Bisecting [' + lo.toFixed(6) + ', ' + hi.toFixed(6) + '] ...\n';
+                // log.textContent += 'Bisecting [' + lo.toFixed(6) + ', ' + hi.toFixed(6) + '] ...\n';
                 for (var j = 0; j < 80; j++) {
                     var mid = (lo + hi) * 0.5;
                     var dm  = halfOrbitDy(mid);
@@ -203,13 +203,13 @@
                     if (hi - lo < eps) break;
                 }
                 var sunR = (lo + hi) * 0.5;
-                log.textContent += 'Converged: sunR=' + sunR.toFixed(10) +
-                                   '  dy=' + halfOrbitDy(sunR).toExponential(4) + '\n';
+                // log.textContent += 'Converged: sunR=' + sunR.toFixed(10) +
+                //                    '  dy=' + halfOrbitDy(sunR).toExponential(4) + '\n';
                 return sunR;
             }
             prev = { s: s, dy: dy };
         }
-        log.textContent += 'No root in [0, ' + maxSun + '] — try different r or rm.\n';
+        // log.textContent += 'No root in [0, ' + maxSun + '] — try different r or rm.\n';
         return 0;
     }
 
@@ -220,7 +220,7 @@
     // sunR is kept fixed — ring-ring forces are symmetric so the required
     // sunR barely changes, but the sample positions do need correction.
     var lg = document.getElementById('log');
-    lg.textContent += '\nRefining samples with full ' + N + '-ring system:\n';
+    // lg.textContent += '\nRefining samples with full ' + N + '-ring system:\n';
     for (var iter = 0; iter < 6; iter++) {
         var s2 = sampleOrbitFull(sunR, samples);
         var maxD = 0;
@@ -228,7 +228,7 @@
             maxD = Math.max(maxD, Math.abs(s2[k].y - samples[k].y),
                                   Math.abs(s2[k].z - samples[k].z));
         samples = s2;
-        lg.textContent += '  iter ' + iter + ': maxDelta=' + maxD.toExponential(3) + '\n';
+        // lg.textContent += '  iter ' + iter + ': maxDelta=' + maxD.toExponential(3) + '\n';
         if (maxD < 1e-9) break;
     }
 
@@ -237,11 +237,11 @@
         background: '#000000',
         scale:    400,
         ymargin:  20,
-        framerate: 40,
+        framerate: 20,
         trail:    false,
         traillen: 1,
-        fade:     0.3,
-        stop:     false,
+        fade:     1,
+        stop:     true,
         moons:    makeMoons(samples, sunR),
     }));
 
