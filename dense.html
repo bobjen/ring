@@ -1,45 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dense Self-Orbiting Torus</title>
+  <title>8-Ring Dyson Swarm</title>
   <script src="ring.js"></script>
 </head>
 <body bgcolor="#000000" text="#ffffff" style="font-family:monospace;">
 
-<p><center><canvas id="cv" width="600" height="400" style="border:1px solid #ffffff;"><script>
-    document.getElementById("cv").width = window.innerWidth*0.6;
-    document.getElementById("cv").height = window.innerWidth*0.4;
+<h3>2 rings with mass orbiting an oblate central sun (or sun plus inner ring)</h3>
+
+<p>The precessing of the rings can be roughly eliminated or reversed by tuning how oblate the sun is. It still has the tag-team orbit behavior so there's still wobbles.
+
+<p><center><canvas id="dense" width="600" height="400" style="border:1px solid #ffffff;"><script>
+    document.getElementById("dense").width = window.innerWidth*0.9;
+    document.getElementById("dense").height = window.innerWidth*0.3;
 (function() {
     var moons = [];
-    var colors = ["#ff00ff","#00ffff"];
-    const nMoons = 1;
-    const rm = 0.0; // ring mass
-    const q = 0;
-    // Sun
-    moons.push({ y: 1.0, mass: 1-nMoons*rm, color: "#ffff00", radius: 4, l: 1.295});
-    for (var i = 0; i < nMoons; i++) {
-        const y = 1;
-        const r = 0.2;
-        const theta = i*2*Math.PI/nMoons;
-        const rs = r*Math.sin(theta);
-        const rc = r*Math.cos(theta);
-        moons.push({ y: 1.0, z: 0.1, r, l: 0.70, vy: 0.6, vz: 0, mass: rm, color: colors[i], radius: 2});
+    var colors = ["#ffff00", "#ff00ff","#00ffff", "#ff0000", "#00ff00", "#0000ff", "#ffffff"];
+    const baseL = 0.69;
+    const baseV = 3.4;
+    const baseR = 0.02;
+    const shells = 8;
+    var nRings = 1;
+    for (var j = 1; j <= shells; j++) {
+        nRings += 6*j;
+    }
+    const rm = 1.0/nRings; // ring mass
+    moons.push({ y: 0, mass: 0, color: "#ffff00", radius: 1, l: 0, fixed: true });  // sun
+    moons.push({ y: 1, mass: rm, color: "#ffff00", radius: 1, l: baseL });  // center
+    for (var j = 1; j <= shells; j++)
+    {
+        var nMoons = 6*j;
+        for (var i = 0; i < nMoons; i++) {
+            const r = baseR*j;
+            const v = baseV;
+            const L = baseL;
+            const theta = i*2*Math.PI/nMoons;
+            const rs = r*Math.sin(theta);
+            const rc = r*Math.cos(theta);
+            moons.push({ y: 1+rs, z: rc, l: L, vy: -rc*v, vz: rs*v, mass: rm, color: colors[i%7], radius: 1});
+        }
     }
     ring(document.currentScript.parentElement, {
         background: "#000000",
-        scale: window.innerWidth*0.4,
+        scale: window.innerWidth*0.7,
         ymargin: 20,
-        increment: 0.1,
-        work: 20,
+        increment: 0.01,
+        work: 4,
         framerate: 40,
         trail: true,
-        traillen: 2000,
-        fade: 0.1,
+        traillen: 1,
+        fade: 0.5,
         stop: false,
         moons: moons,
     });
 })();
-</script></canvas></center></p>
+</script></canvas></center>
 
 </body>
 </html>

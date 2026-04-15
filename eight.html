@@ -1,18 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>8-Ring Dyson Swarm</title>
+  <title>32-Ring Dyson Swarm</title>
   <script src="ring.js"></script>
 </head>
 <body bgcolor="#000000" text="#ffffff" style="font-family:monospace;">
 
-<p><canvas id="cv" width="600" height="400" style="border:1px solid #ffffff;"></canvas></p>
+<p><center><canvas id="cv" width="600" height="400" style="border:1px solid #ffffff;"></canvas></center></p>
 <pre id="log" style="color:#00ff00;font-size:11px;max-height:300px;overflow:auto;"></pre>
 
 <script>
+    document.getElementById("cv").width = window.innerWidth*0.6;
+    document.getElementById("cv").height = window.innerWidth*0.4;
 (function() {
-    var N = 64;
-    var rm = 0.0005;
+    var N = 32;
+    var rm = 0.001;
     var colors = [];
     for (var ci = 0; ci < N; ci++) {
         var h = (ci * 360 / N) | 0;
@@ -93,7 +95,7 @@
     function makeMoons(samples, sunR) {
         var moons = [];
         moons.push({ y: sunR, z: 0, vy: 0, vz: 0,
-                     mass: 1 - N*rm, l: 0, fixed: true, color: '#ffff00', radius: 4 });
+                     mass: 1 - N*rm, l: 0, fixed: true, color: '#ffff00', radius: 10 });
         for (var i = 0; i < N; i++) {
             moons.push({ y: samples[i].y, z: samples[i].z,
                          vy: samples[i].vy, vz: samples[i].vz,
@@ -235,7 +237,7 @@
     // Animate the result
     ring('cv', Object.assign({}, BASE, {
         background: '#000000',
-        scale:    400,
+        scale:    window.innerWidth*0.4,
         ymargin:  20,
         framerate: 20,
         trail:    false,
