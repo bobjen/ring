@@ -1,46 +1,263 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Dyson Swarm with Mass</title>
+  <title>Dyson 2-Ring Action Minimizer</title>
   <script src="ring.js"></script>
+  <script src="action.js"></script>
 </head>
-<body bgcolor="#000000"
-text="#ffffff" link="#ffff00" vlink="#00ffff" alink="#0fffff">
-
-<p><canvas width="600" height="400" style="border:1px solid #ffffff;">
+<body bgcolor="#000000" text="#ffffff" style="font-family:monospace;">
+<p><canvas id="cv" width="600" height="400" style="border:1px solid #ffffff;"></canvas></p>
+<pre id="log" style="color:#00ff00;font-size:11px;max-height:300px;overflow:auto;"></pre>
 <script>
 (function() {
-    var moons = [];
-    var colors = ["#ff00ff","#00ffff"];
-    const nMoons = 2;
-    const rm = 0.01; // ring mass
-    const q = 0;
-    // Sun
-    moons.push({ y: 0.0, z: 0, vy: 0, vz: -2*q/100, mass: 1-nMoons*rm, color: "#ffff00", radius: 4, l: 0, fixed: true });
-    for (var i = 0; i < nMoons; i++) {
-        const y = 1;
-        const r = 0.2;
-        const theta = i*2*Math.PI/nMoons;
-        const rs = r*Math.sin(theta);
-        const rc = r*Math.cos(theta);
-        moons.push({ y: Math.sqrt(y*y-rc*rc)+rs, z: rc, l: (y*y-r*r), vy: -rc, vz: rs+q, mass: rm, color: colors[i], radius: 4});
+    var N   = 2;
+    var rm  = 0.001;
+    var r   = 0.4;
+    var l   = 1 - r*r;
+    var BASE = { increment: 0.1, work: 20, points: 8, trail: false };
+    var inc  = BASE.increment / BASE.work;
+
+    var colors = ['#ff0000', '#00ffff'];
+
+    // ---- Orbit sampling (same approach as eight.html) ----
+
+    function sampleOrbit(sunR) {
+        var cosmos = new Cosmos2D(Object.assign({}, BASE, { moons: [
+            { y: sunR, z: 0, vy: 0, vz: 0, mass: 1-N*rm, l: 0, fixed: true },
+            { y: Math.sqrt(1 - r*r), z: r, l: l, vy: -r, vz: 0, mass: rm }
+        ]}));
+        var ring0 = cosmos.rings[1];
+        var traj = [[ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]];
+        var prevVz = 0, wentNeg = false, wentPos = false, T = 0;
+        for (var i = 0; i < 100000; i++) {
+            cosmos.multistep();
+            var vz = ring0.v.z;
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+            if (!wentNeg && vz < 0)              wentNeg = true;
+            if ( wentNeg && !wentPos && vz >= 0) wentPos = true;
+            if ( wentPos && vz < 0) {
+                var alpha = prevVz / (prevVz - vz);
+                T = i + alpha;
+                break;
+            }
+            prevVz = vz;
+        }
+        var need = Math.ceil(2 * T) + 2;
+        while (traj.length <= need) {
+            cosmos.multistep();
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+        }
+        var samples = [];
+        for (var k = 0; k < N; k++) {
+            var w  = k / N;
+            var t1 = k * T / N,     i1 = Math.floor(t1), f1 = t1 - i1;
+            var t2 = T + k * T / N, i2 = Math.floor(t2), f2 = t2 - i2;
+            var p1 = traj[i1], q1 = traj[i1 + 1] || traj[i1];
+            var p2 = traj[i2], q2 = traj[i2 + 1] || traj[i2];
+            samples.push({
+                y:  w*(p1[0]+f1*(q1[0]-p1[0])) + (1-w)*(p2[0]+f2*(q2[0]-p2[0])),
+                z:  w*(p1[1]+f1*(q1[1]-p1[1])) + (1-w)*(p2[1]+f2*(q2[1]-p2[1])),
+                vy: w*(p1[2]+f1*(q1[2]-p1[2])) + (1-w)*(p2[2]+f2*(q2[2]-p2[2])),
+                vz: w*(p1[3]+f1*(q1[3]-p1[3])) + (1-w)*(p2[3]+f2*(q2[3]-p2[3])),
+            });
+        }
+        return { samples: samples, T: T, traj: traj };
     }
-    ring(document.currentScript.parentElement, {
-        background: "#000000",
-        scale: 400,
-        ymargin: 20,
-        increment: 0.1,
-        work: 20,
-        framerate: 40,
-        trail: true,
+
+    function makeMoons(samples, sunR) {
+        var moons = [{ y: sunR, z: 0, vy: 0, vz: 0, mass: 1-N*rm, l: 0,
+                       fixed: true, color: '#ffff00', radius: 10 }];
+        for (var i = 0; i < N; i++)
+            moons.push({ y: samples[i].y, z: samples[i].z,
+                         vy: samples[i].vy, vz: samples[i].vz,
+                         l: l, mass: rm, color: colors[i], radius: 3 });
+        return moons;
+    }
+
+    // Run the full N-ring system for one period, re-sample.
+    function sampleOrbitFull(sunR, samples) {
+        var cosmos = new Cosmos2D(Object.assign({}, BASE,
+                                  { moons: makeMoons(samples, sunR) }));
+        var ring0 = cosmos.rings[1];
+        var traj = [[ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]];
+        var prevVz = 0, wentNeg = false, wentPos = false, T = 0;
+        for (var i = 0; i < 100000; i++) {
+            cosmos.multistep();
+            var vz = ring0.v.z;
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+            if (!wentNeg && vz < 0)              wentNeg = true;
+            if ( wentNeg && !wentPos && vz >= 0) wentPos = true;
+            if ( wentPos && vz < 0) {
+                var alpha = prevVz / (prevVz - vz);
+                T = i + alpha;
+                break;
+            }
+            prevVz = vz;
+        }
+        var need = Math.ceil(2 * T) + 2;
+        while (traj.length <= need) {
+            cosmos.multistep();
+            traj.push([ring0.p.y, ring0.p.z, ring0.v.y / inc, ring0.v.z / inc]);
+        }
+        var out = [];
+        for (var k = 0; k < N; k++) {
+            var w  = k / N;
+            var t1 = k * T / N,     i1 = Math.floor(t1), f1 = t1 - i1;
+            var t2 = T + k * T / N, i2 = Math.floor(t2), f2 = t2 - i2;
+            var p1 = traj[i1], q1 = traj[i1 + 1] || traj[i1];
+            var p2 = traj[i2], q2 = traj[i2 + 1] || traj[i2];
+            out.push({
+                y:  w*(p1[0]+f1*(q1[0]-p1[0])) + (1-w)*(p2[0]+f2*(q2[0]-p2[0])),
+                z:  w*(p1[1]+f1*(q1[1]-p1[1])) + (1-w)*(p2[1]+f2*(q2[1]-p2[1])),
+                vy: w*(p1[2]+f1*(q1[2]-p1[2])) + (1-w)*(p2[2]+f2*(q2[2]-p2[2])),
+                vz: w*(p1[3]+f1*(q1[3]-p1[3])) + (1-w)*(p2[3]+f2*(q2[3]-p2[3])),
+            });
+        }
+        return out;
+    }
+
+    function halfOrbitDy(sunR) {
+        var res = sampleOrbit(sunR);
+        var samples = res.samples;
+        var cosmos = new Cosmos2D(Object.assign({}, BASE,
+                                  { moons: makeMoons(samples, sunR) }));
+        var ring0 = cosmos.rings[1];
+        var y0 = ring0.p.y, wentNeg = false, prevVz = 0;
+        for (var i = 0; i < 50000; i++) {
+            cosmos.multistep();
+            var vz = ring0.v.z;
+            if (!wentNeg && vz < -1e-12) wentNeg = true;
+            if ( wentNeg && vz >= 0) {
+                var alpha = -prevVz / (vz - prevVz);
+                return ring0.p.y - (1 - alpha) * ring0.v.y - y0;
+            }
+            prevVz = vz;
+        }
+        return ring0.p.y - y0;
+    }
+
+    function findSunR(maxSun, nScan, eps) {
+        var step = maxSun / nScan;
+        var prev = { s: 0, dy: halfOrbitDy(0) };
+        var sunR = 0;
+        for (var i = 1; i <= nScan; i++) {
+            var s  = i * step;
+            var dy = halfOrbitDy(s);
+            if (prev.dy * dy <= 0) {
+                var lo = prev.s, dlo = prev.dy, hi = s;
+                for (var j = 0; j < 80; j++) {
+                    var mid = (lo + hi) * 0.5;
+                    var dm  = halfOrbitDy(mid);
+                    if (dlo * dm <= 0) { hi = mid; }
+                    else               { lo = mid; dlo = dm; }
+                    if (hi - lo < eps) break;
+                }
+                sunR = (lo + hi) * 0.5; break;
+            }
+            prev = { s: s, dy: dy };
+        }
+        return sunR;
+    }
+
+    // ---- Action minimizer ----
+    // Refine the orbit to a true choreography using Fourier-space gradient descent.
+    // traj/T come from sampleOrbit().  Returns AM samples, or null if diverged to NaN.
+    //
+    // Strategy: run the AM with all harmonics free (better convergence), then call
+    // projectChoreography() to zero the n=k·N harmonics that create nonzero total
+    // momentum.  The even harmonics developed during the run are small, so zeroing
+    // them changes the orbit only slightly.
+    //
+    // Known limitation: the AM currently does not update T (period) during steps.
+    // Adding a T update with backtracking (see tmp/test_gauge.js) should help
+    // convergence, but it also caused T→0 collapse in earlier attempts.
+
+    function runActionMinimizer(traj, T) {
+        var lg = document.getElementById('log');
+        var am = new ActionMinimizer({
+            N: N, rm: rm, l: l,
+            fixed: [{ y: sunR, z: 0, mass: 1 - N*rm }],
+        });
+        am.trajToParams(traj, T, inc);
+        lg.textContent += 'AM initial: T_phys=' + am.params.T_phys.toFixed(4) +
+                          '  rms=' + am.step(0).toExponential(3) + '\n';
+        am.run({
+            nSteps:      2000,
+            alpha:       0.1,
+            eps:         1e-8,
+            reportEvery: 500,
+            onProgress:  function(iter, r, Tv) {
+                lg.textContent += 'AM iter ' + iter + ': rms=' + r.toExponential(3) +
+                                  '  T=' + Tv.toFixed(6) + '\n';
+            },
+        });
+        // Zero harmonics divisible by N — enforces zero total momentum and COM
+        // centred on the orbit.  See ActionMinimizer.projectChoreography().
+        am.projectChoreography();
+        var amSamples = am.getSamples();
+        for (var k = 0; k < N; k++) {
+            if (!isFinite(amSamples[k].y) || !isFinite(amSamples[k].z)) {
+                lg.textContent += 'AM diverged to NaN — download uses physical samples.\n';
+                return null;
+            }
+        }
+        lg.textContent += 'AM Ring 0: y=' + amSamples[0].y.toFixed(6) + ' z=' + amSamples[0].z.toFixed(6) + '\n';
+        lg.textContent += 'AM Ring 1: y=' + amSamples[1].y.toFixed(6) + ' z=' + amSamples[1].z.toFixed(6) + '\n';
+        return amSamples;
+    }
+
+    // ---- Main ----
+    var lg = document.getElementById('log');
+
+    var sunR = findSunR(0.5, 20, 1e-6);
+    lg.textContent += 'sunR=' + sunR.toFixed(8) + '\n';
+
+    var res = sampleOrbit(sunR);
+    var samples = res.samples;
+
+    // Refine to self-consistency under the full 2-ring system
+    for (var iter = 0; iter < 6; iter++) {
+        var s2 = sampleOrbitFull(sunR, samples);
+        var maxD = 0;
+        for (var k = 0; k < N; k++)
+            maxD = Math.max(maxD, Math.abs(s2[k].y - samples[k].y),
+                                  Math.abs(s2[k].z - samples[k].z));
+        samples = s2;
+        if (maxD < 1e-9) break;
+    }
+    lg.textContent += 'Physical samples converged.\n';
+    lg.textContent += 'Ring 0: y=' + samples[0].y.toFixed(6) + ' z=' + samples[0].z.toFixed(6) + '\n';
+    lg.textContent += 'Ring 1: y=' + samples[1].y.toFixed(6) + ' z=' + samples[1].z.toFixed(6) + '\n';
+
+    // Run action minimizer; result used for dyson_out.html download.
+    var amSamples = runActionMinimizer(res.traj, res.T);
+    var downloadSamples = amSamples || samples;
+    var downloadNote = amSamples ? '' : ' (action minimizer diverged — using physical samples)';
+
+    var ringOpts = Object.assign({}, BASE, {
+        background: '#000000',
+        scale:    400,
+        ymargin:  20,
+        framerate: 20,
+        trail:    true,
         traillen: 2000,
-        fade: 0.1,
-        stop: false,
-        moons: moons,
+        fade:     0.02,
+        stop:     false,
+        moons:    makeMoons(samples, sunR),
     });
+
+    ring('cv', ringOpts);
+
+    // Download dyson_out.html using the action-minimized initial conditions.
+    var a = document.createElement('a');
+    a.textContent = 'Download dyson_out.html' + downloadNote;
+    a.style.cssText = 'color:#00ffff;cursor:pointer;';
+    a.onclick = function() {
+        var downloadOpts = Object.assign({}, ringOpts, { moons: makeMoons(downloadSamples, sunR) });
+        actionDownloadHTML('Dyson 2-Ring', downloadOpts);
+    };
+    document.body.appendChild(a);
 })();
 </script>
-</canvas>
-
 </body>
 </html>
