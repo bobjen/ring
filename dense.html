@@ -16,35 +16,35 @@
 (function() {
     var moons = [];
     var colors = ["#ffff00", "#ff00ff","#00ffff", "#ff0000", "#00ff00", "#0000ff", "#ffffff"];
-    const baseL = 0.69;
-    const baseV = 3.4;
-    const baseR = 0.02;
+    const baseL = 0.775;
+    const baseV = 6.7;
+    const baseR = 0.01;
     const shells = 8;
     var nRings = 1;
     for (var j = 1; j <= shells; j++) {
-        nRings += 6*j;
+        nRings += 6*j-1;
     }
     const rm = 1.0/nRings; // ring mass
     moons.push({ y: 0, mass: 0, color: "#ffff00", radius: 1, l: 0, fixed: true });  // sun
     moons.push({ y: 1, mass: rm, color: "#ffff00", radius: 1, l: baseL });  // center
     for (var j = 1; j <= shells; j++)
     {
-        var nMoons = 6*j;
+        var nMoons = 6*j-1;
         for (var i = 0; i < nMoons; i++) {
-            const r = baseR*j;
-            const v = baseV;
-            const L = baseL;
-            const theta = i*2*Math.PI/nMoons;
+            const r = baseR*(j);
+            const theta = 2*Math.PI*i/nMoons;
             const rs = r*Math.sin(theta);
             const rc = r*Math.cos(theta);
-            moons.push({ y: 1+rs, z: rc, l: L, vy: -rc*v, vz: rs*v, mass: rm, color: colors[i%7], radius: 1});
+            const v = baseV;
+            const L = baseL;
+            moons.push({ y: 1+rc, z: -rs, l: L, vy: rs*v, vz: rc*v, mass: rm, color: colors[i%7], radius: 1});
         }
     }
     ring(document.currentScript.parentElement, {
         background: "#000000",
         scale: window.innerWidth*0.7,
         ymargin: 20,
-        increment: 0.01,
+        increment: 0.005,
         work: 4,
         framerate: 40,
         trail: true,
