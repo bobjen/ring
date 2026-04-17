@@ -75,6 +75,8 @@
     }
 
     // Run the full N-ring system for one period, re-sample.
+    // Returns { samples, traj, T } so callers can also use the trajectory
+    // (e.g. to initialise the action minimiser from the 2-ring orbit).
     function sampleOrbitFull(sunR, samples) {
         var cosmos = new Cosmos2D(Object.assign({}, BASE,
                                   { moons: makeMoons(samples, sunR) }));
@@ -113,7 +115,7 @@
                 vz: w*(p1[3]+f1*(q1[3]-p1[3])) + (1-w)*(p2[3]+f2*(q2[3]-p2[3])),
             });
         }
-        return out;
+        return { samples: out, traj: traj, T: T };
     }
 
     function halfOrbitDy(sunR) {
@@ -161,16 +163,18 @@
 
     // ---- Action minimizer ----
     // Refine the orbit to a true choreography using Fourier-space gradient descent.
-    // traj/T come from sampleOrbit().  Returns AM samples, or null if diverged to NaN.
+    // traj/T come from sampleOrbitFull().  Returns AM samples, or null if diverged to NaN.
     //
     // Strategy: run the AM with all harmonics free (better convergence), then call
     // projectChoreography() to zero the n=k·N harmonics that create nonzero total
-    // momentum.  The even harmonics developed during the run are small, so zeroing
-    // them changes the orbit only slightly.
+    // momentum.
     //
-    // Known limitation: the AM currently does not update T (period) during steps.
-    // Adding a T update with backtracking (see tmp/test_gauge.js) should help
-    // convergence, but it also caused T→0 collapse in earlier attempts.
+    // Current status: the AM does not yet converge to a good choreographic orbit for
+    // N=2.  The physical 2-ring trajectory already has ~7% even harmonics, which
+    // means the orbit lacks exact choreographic z-symmetry at these parameters.
+    // The AM stalls at rms≈3e-2 rather than converging to near-zero.  The download
+    // therefore uses whatever the AM produces (both rings on the same Fourier orbit)
+    // but the dynamics will look wrong — this is a known open problem.
 
     function runActionMinimizer(traj, T) {
         var lg = document.getElementById('log');
@@ -183,7 +187,7 @@
                           '  rms=' + am.step(0).toExponential(3) + '\n';
         am.run({
             nSteps:      2000,
-            alpha:       0.1,
+            alpha:       1.0,
             eps:         1e-8,
             reportEvery: 500,
             onProgress:  function(iter, r, Tv) {
@@ -215,22 +219,27 @@
     var res = sampleOrbit(sunR);
     var samples = res.samples;
 
-    // Refine to self-consistency under the full 2-ring system
+    // Refine to self-consistency under the full 2-ring system.
+    // Keep the last full-system run so the AM can start from the 2-ring trajectory
+    // instead of the single-ring one — the 2-ring orbit is already close to the
+    // choreography, so the AM needs far smaller corrections.
+    var fullRes = { traj: res.traj, T: res.T };
     for (var iter = 0; iter < 6; iter++) {
-        var s2 = sampleOrbitFull(sunR, samples);
+        var fr = sampleOrbitFull(sunR, samples);
         var maxD = 0;
         for (var k = 0; k < N; k++)
-            maxD = Math.max(maxD, Math.abs(s2[k].y - samples[k].y),
-                                  Math.abs(s2[k].z - samples[k].z));
-        samples = s2;
+            maxD = Math.max(maxD, Math.abs(fr.samples[k].y - samples[k].y),
+                                  Math.abs(fr.samples[k].z - samples[k].z));
+        samples = fr.samples;
+        fullRes = fr;
         if (maxD < 1e-9) break;
     }
     lg.textContent += 'Physical samples converged.\n';
     lg.textContent += 'Ring 0: y=' + samples[0].y.toFixed(6) + ' z=' + samples[0].z.toFixed(6) + '\n';
     lg.textContent += 'Ring 1: y=' + samples[1].y.toFixed(6) + ' z=' + samples[1].z.toFixed(6) + '\n';
 
-    // Run action minimizer; result used for dyson_out.html download.
-    var amSamples = runActionMinimizer(res.traj, res.T);
+    // Run action minimizer starting from the converged 2-ring trajectory.
+    var amSamples = runActionMinimizer(fullRes.traj, fullRes.T);
     var downloadSamples = amSamples || samples;
     var downloadNote = amSamples ? '' : ' (action minimizer diverged — using physical samples)';
 

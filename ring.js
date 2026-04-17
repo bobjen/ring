@@ -992,6 +992,22 @@ function Cosmos2D(opts) {
     const points = this.points;
     this.rings = (opts.moons || []).map(function(m) { return new Ring(m, inc, points); });
 
+    // Centre z-COM and zero net vz across all rings (fixed and free alike)
+    // so the orbit sits on z=0 and has no net axial drift.
+    (function(rings) {
+        var totalMass = 0, sumZ = 0, sumVz = 0;
+        for (var i = 0; i < rings.length; i++) {
+            var r = rings[i];
+            totalMass += r.mass;  sumZ += r.mass * r.p.z;  sumVz += r.mass * r.v.z;
+        }
+        if (totalMass > 0) {
+            var dz = sumZ / totalMass, dvz = sumVz / totalMass;
+            for (var i = 0; i < rings.length; i++) {
+                rings[i].p.z -= dz;  rings[i].v.z -= dvz;
+            }
+        }
+    })(this.rings);
+
     this.prepare();
 }
 

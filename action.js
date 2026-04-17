@@ -16,9 +16,11 @@
 // Gradient: ∂S/∂aₙ = -(1/TM)·Σᵢ Ry·cos(2πnτᵢ)
 // Update:   aₙ += (α/T)·(1/M)·Σᵢ Ry·cos(2πnτᵢ)
 //
-// T is kept fixed during step() — updating T during the step caused a
-// positive-feedback collapse (T→0).  A future improvement would be to
-// include T in the backtracking update, which test_gauge.js explored.
+// T is kept fixed during step().  A Newton direction for T (T²_est = Σq''·F/ΣF²)
+// was tried but jumps to a wrong value when the orbit is far from the solution
+// (the T that minimises residuals for a wrong orbit shape ≠ the true period).
+// With T fixed, the AM converges modestly for single-ring initialisation; the
+// 2-ring period (sampleOrbitFull) differs by ~0.7%, leaving a small residual floor.
 //
 // Choreographic symmetry note: harmonics n = k·N (k≥1) produce nonzero
 // total momentum when the N rings are sampled at equal phase offsets.
