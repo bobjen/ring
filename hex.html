@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hex-Grid Self-Gravitating Torus</title>
+  <script src="ring.js"></script>
+</head>
+<body bgcolor="#000000" text="#ffffff" style="font-family:monospace;">
+
+<h3>Filled hex grid of rings, self-gravitating, aiming for a 1/6-orbit choreography</h3>
+
+<p>17 rings across (8 hex shells around a central ring = 217 rings), nearest-neighbor
+spacing 0.01, centered on y=1 z=0.  All rings start with equal mass (1/N) and equal L.
+The yellow dot at y=0 is a massless marker on the axis.
+
+<p><center><canvas id="hex" width="600" height="400" style="border:1px solid #ffffff;"><script>
+    document.getElementById("hex").width  = window.innerWidth*0.9;
+    document.getElementById("hex").height = window.innerWidth*0.3;
+(function() {
+    var N      = 8;     // hex shells around center
+    var s      = 0.01;  // nearest-neighbor spacing
+    var baseL  = 0.775; // tune: if <y> drifts up after 1 orbit, too big; down, too small
+    var colors = ["#ffff00", "#ff00ff", "#00ffff", "#ff0000", "#00ff00", "#0000ff", "#ffffff"];
+
+    // Axial hex coordinates (q, r): cell distance from origin = max(|q|, |r|, |q+r|).
+    // Cartesian offset in the (y, z) plane:  dy = s*(q + r/2),  dz = s*(r*sqrt(3)/2).
+    var pts = [];
+    for (var q = -N; q <= N; q++) {
+        var rMin = Math.max(-N, -N - q);
+        var rMax = Math.min( N,  N - q);
+        for (var r = rMin; r <= rMax; r++) pts.push([q, r]);
+    }
+    // pts.length = 3*N*(N+1) + 1 = 217 for N=8.
+
+    var rm    = 1.0 / pts.length;
+    var moons = [{ y: 0, mass: 0, color: "#ffff00", radius: 1, l: 0, fixed: true }];
+    for (var i = 0; i < pts.length; i++) {
+        var q  = pts[i][0], r = pts[i][1];
+        var dy = s * (q + r / 2);
+        var dz = s * (r * Math.sqrt(3) / 2);
+        moons.push({
+            y: 1 + dy, z: dz,
+            vy: 0, vz: 0,
+            l: baseL, mass: rm,
+            color: colors[i % 7], radius: 1,
+        });
+    }
+
+    ring(document.currentScript.parentElement, {
+        background: "#000000",
+        scale:      window.innerWidth * 0.7,
+        ymargin:    20,
+        increment:  0.005,
+        work:       4,
+        framerate:  40,
+        trail:      true,
+        traillen:   1,
+        fade:       0.5,
+        stop:       false,
+        moons:      moons,
+    });
+})();
+</script></canvas></center>
+
+</body>
+</html>
