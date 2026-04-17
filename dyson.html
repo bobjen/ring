@@ -118,6 +118,41 @@
         return { samples: out, traj: traj, T: T };
     }
 
+    // Extract choreographic samples from the two z=0 crossings in a single-ring
+    // trajectory.  For N=2, the time-reversal symmetry z(+d)=-z(-d) forces vy=0
+    // at every z=0 crossing, so only (y, vz) need to be found.  The two crossings
+    // (upward then downward) are separated by T/2 and serve as the starting states
+    // for ring 0 and ring 1 respectively.  Returns null if crossings are not found.
+    function z0Samples(traj, T) {
+        var t0 = -1, y1 = 0, vz1 = 0;
+        for (var i = 1; i < traj.length; i++) {
+            if (traj[i-1][1] < 0 && traj[i][1] >= 0) {
+                var alpha = -traj[i-1][1] / (traj[i][1] - traj[i-1][1]);
+                y1  = traj[i-1][0] + alpha*(traj[i][0] - traj[i-1][0]);
+                vz1 = traj[i-1][3] + alpha*(traj[i][3] - traj[i-1][3]);
+                t0  = (i - 1) + alpha;
+                break;
+            }
+        }
+        if (t0 < 0) return null;
+        // Find the downward crossing nearest to t0 + T/2.
+        var tHalf = t0 + T / 2, best = -1, bestDist = T;
+        for (var j = 1; j < traj.length - 1; j++) {
+            if (traj[j][1] > 0 && traj[j+1][1] <= 0) {
+                var dist = Math.abs(j - tHalf);
+                if (dist < bestDist) { bestDist = dist; best = j; }
+            }
+        }
+        if (best < 0) return null;
+        var p = traj[best], q = traj[best + 1];
+        var beta = p[1] / (p[1] - q[1]);
+        return [
+            { y: y1,                          z: 0, vy: 0, vz: vz1 },
+            { y: p[0] + beta*(q[0] - p[0]),   z: 0, vy: 0,
+              vz: p[3] + beta*(q[3] - p[3]) }
+        ];
+    }
+
     function halfOrbitDy(sunR) {
         var res = sampleOrbit(sunR);
         var samples = res.samples;
@@ -217,7 +252,13 @@
     lg.textContent += 'sunR=' + sunR.toFixed(8) + '\n';
 
     var res = sampleOrbit(sunR);
-    var samples = res.samples;
+    // Seed from the z=0 crossings (upward then downward, separated by T/2).
+    // By time-reversal symmetry vy=0 at both crossings, so the orbit starts in
+    // the correct choreographic symmetry class and the iteration stays there.
+    // Fall back to the t=0/t=T/2 samples if crossings are not found.
+    var samples = z0Samples(res.traj, res.T) || res.samples;
+    lg.textContent += 'z=0 seed: Ring 0: y=' + samples[0].y.toFixed(6) +
+                      '  Ring 1: y=' + samples[1].y.toFixed(6) + '\n';
 
     // Refine to self-consistency under the full 2-ring system.
     // Keep the last full-system run so the AM can start from the 2-ring trajectory
@@ -235,8 +276,10 @@
         if (maxD < 1e-9) break;
     }
     lg.textContent += 'Physical samples converged.\n';
-    lg.textContent += 'Ring 0: y=' + samples[0].y.toFixed(6) + ' z=' + samples[0].z.toFixed(6) + '\n';
-    lg.textContent += 'Ring 1: y=' + samples[1].y.toFixed(6) + ' z=' + samples[1].z.toFixed(6) + '\n';
+    lg.textContent += 'Ring 0: y=' + samples[0].y.toFixed(6) + ' z=' + samples[0].z.toFixed(6) +
+                      ' vz=' + samples[0].vz.toFixed(6) + '\n';
+    lg.textContent += 'Ring 1: y=' + samples[1].y.toFixed(6) + ' z=' + samples[1].z.toFixed(6) +
+                      ' vz=' + samples[1].vz.toFixed(6) + '\n';
 
     // Run action minimizer starting from the converged 2-ring trajectory.
     var amSamples = runActionMinimizer(fullRes.traj, fullRes.T);
