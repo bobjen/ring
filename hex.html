@@ -16,9 +16,11 @@ The yellow dot at y=0 is a massless marker on the axis.
     document.getElementById("hex").width  = window.innerWidth*0.9;
     document.getElementById("hex").height = window.innerWidth*0.3;
 (function() {
-    var N      = 8;     // hex shells around center
+    var N      = 11;     // hex shells around center
     var s      = 0.01;  // nearest-neighbor spacing
-    var baseL  = 0.775; // tune: if <y> drifts up after 1 orbit, too big; down, too small
+    var baseL  = 0.79; // tune: if <y> drifts up after 1 orbit, too big
+    var baseV  = 7.9;   // tune: if radius increases after 1/6th orbit, too big.
+    var maxR   = 0.07;   // max initial radius
     var colors = ["#ffff00", "#ff00ff", "#00ffff", "#ff0000", "#00ff00", "#0000ff", "#ffffff"];
 
     // Axial hex coordinates (q, r): cell distance from origin = max(|q|, |r|, |q+r|).
@@ -27,7 +29,11 @@ The yellow dot at y=0 is a massless marker on the axis.
     for (var q = -N; q <= N; q++) {
         var rMin = Math.max(-N, -N - q);
         var rMax = Math.min( N,  N - q);
-        for (var r = rMin; r <= rMax; r++) pts.push([q, r]);
+        for (var r = rMin; r <= rMax; r++) {
+            var dy = s * (q + r / 2);
+            var dz = s * (r * Math.sqrt(3) / 2);
+            if (dy*dy + dz*dz <= maxR*maxR) pts.push([q, r]);
+        }
     }
     // pts.length = 3*N*(N+1) + 1 = 217 for N=8.
 
@@ -39,7 +45,7 @@ The yellow dot at y=0 is a massless marker on the axis.
         var dz = s * (r * Math.sqrt(3) / 2);
         moons.push({
             y: 1 + dy, z: dz,
-            vy: 0, vz: 0,
+            vy: baseV*dz, vz: -baseV*dy,
             l: baseL, mass: rm,
             color: colors[i % 7], radius: 1,
         });
